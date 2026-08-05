@@ -12,10 +12,11 @@ function resolve(item, path) {
  * per item of the `items` property, painting the clone's binds with paths
  * resolved into the item — names, never code, same grammar as hydrargyri.
  *
- * The template's element siblings are the rows region, hg-each's to clear and
- * repaint: server-rendered fallback rows stand until items first arrives, so
- * the page reads without the script. Every repaint re-clones from scratch —
- * `key` is reserved for the keyed version and does nothing yet.
+ * Everything beside the template inside its parent is the rows region,
+ * hg-each's to clear and repaint: server-rendered fallback rows stand until
+ * items first arrives, so the page reads without the script. Every repaint
+ * re-clones from scratch — `key` is reserved for the keyed version and does
+ * nothing yet.
  *
  * @example
  * <hg-each>
@@ -94,7 +95,10 @@ export default class HgEach extends HgElement {
     }
     this._painted = true
     const parent = this._template.parentNode
-    for (const child of [...parent.children]) {
+    // childNodes, not children: a clone carries the template's own whitespace,
+    // so an element-only sweep leaves those text nodes behind to pile up on
+    // every repaint.
+    for (const child of [...parent.childNodes]) {
       if (child !== this._template) child.remove()
     }
     const rows = []

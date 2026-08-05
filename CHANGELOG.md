@@ -15,10 +15,10 @@ for the person who wrote the code.
 
 - **`<hg-each>` — list rendering for hydrargyri.** Clones its `<template>` child once per item
   of the `items` property, painting row binds with the hydrargyri grammar — paths resolved into
-  the item, `bind="."` for the item itself, names never code. The template's element
-  siblings are the rows region: server-rendered fallback rows stand until `items` first
-  arrives, so the page reads without the script, and every paint after clears and
-  re-clones them. `null` and `[]` paint no rows; a non-array warns and touches nothing;
+  the item, `bind="."` for the item itself, names never code. Everything beside the
+  template inside its parent is the rows region: server-rendered fallback rows stand
+  until `items` first arrives, so the page reads without the script, and every paint
+  after clears and re-clones it. `null` and `[]` paint no rows; a non-array warns and touches nothing;
   a `reactive()` array repaints on mutation.
 - **Rows carry their coordinates.** Each row root wears `hg-row="<index>"` as an
   attribute — a styling hook too — and the item itself as a `hgItem` property, for

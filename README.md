@@ -93,10 +93,10 @@ paints none, anything else warns and touches nothing. Assign a
 [`reactive()`](https://stamat.github.io/hydrargyri/docs/api.html#reactivemodel)
 array and mutation repaints — `items.push(...)` grows a row, no second call.
 
-**The template's element siblings are the rows region.** Everything beside the
-`<template>` inside its parent is hg-each's to clear and repaint — fallback
-rows before the first paint, clones after. Content that must survive goes
-outside the template's parent:
+**The template's siblings are the rows region.** Everything beside the
+`<template>` inside its parent — elements, text and comments alike — is
+hg-each's to clear and repaint: fallback rows before the first paint, clones
+after. Content that must survive goes outside the template's parent:
 
 ```html
 <hg-each>

@@ -116,6 +116,22 @@ test('a reactive items model repaints on mutation — push grows a row, splice r
   expect(rows(el).map((li) => li.textContent)).toEqual(['stone'])
 })
 
+test('a repaint clears the whole region, not only its elements — nothing piles up', () => {
+  const root = mount(`<hg-each><ul>
+    <template>
+      <li bind="."></li>
+    </template>
+    <li>fallback</li>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  const region = el.querySelector('ul')
+  el.items = ['salt', 'stone']
+  const painted = region.childNodes.length
+  for (let i = 0; i < 4; i++) el.items = ['salt', 'stone']
+  expect(region.childNodes.length).toBe(painted)
+  expect(rows(el).map((li) => li.textContent)).toEqual(['salt', 'stone'])
+})
+
 test('a non-array items value warns and leaves the rows standing', () => {
   const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
   const root = mount(`<hg-each><ul><template><li bind="."></li></template></ul></hg-each>`)

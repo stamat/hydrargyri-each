@@ -30,9 +30,9 @@ script/lint      # eslint (the authority; CI runs it)
 
 ## Principles
 
-- **The template is the author's; the rows region is hg-each's.** The
-  template's element siblings get cleared and re-cloned on every paint —
-  nothing else in the markup is ever touched.
+- **The template is the author's; the rows region is hg-each's.** Everything
+  beside the template inside its parent gets cleared and re-cloned on every
+  paint — nothing else in the markup is ever touched.
 - **Names, never code.** Row binds are parsed by hydrargyri's exported
   `parseBinds` — imported, never copied, so the grammar cannot fork.
 - **Test-driven.** The test is the spec; write it first. Never weaken, skip,
