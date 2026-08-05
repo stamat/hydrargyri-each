@@ -203,8 +203,13 @@ The path is the same grammar the binds use, resolved against the item, so
 `key="user.id"` walks. Two rows claiming one key warns and the later one is
 cloned fresh — one row's nodes cannot serve two — and a path that resolves to
 nothing warns and falls back to re-cloning, both once per element rather than
-once per repaint. `hg-row` keeps following the position, so a handler reading
-it after a reorder reads where the row is now.
+once per repaint. Either message waits for the end of the task before it
+prints, because a `reactive()` mutation is not one repaint: `splice` notifies
+once per element it shifts, and each of those intermediate arrays holds the
+item it just copied in two slots. Those are duplicates nobody wrote, so the
+paint that settles cancels the message they queued — what is still wrong when
+the mutation finishes is what you hear about. `hg-row` keeps following the
+position, so a handler reading it after a reorder reads where the row is now.
 
 **`on` and `#conditions` in rows fall through to the closest hydrargyri ancestor.**
 hg-each defines no handlers of its own, and the element that owns the data

@@ -13,6 +13,7 @@ export default [
         console: 'readonly',
         HTMLElement: 'readonly',
         customElements: 'readonly',
+        queueMicrotask: 'readonly',
         window: 'readonly'
       }
     }

@@ -11,6 +11,20 @@ for the person who wrote the code.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A keyed list no longer calls a `reactive()` splice a duplicate-key mistake.** Removing
+  an item from a keyed list printed _"has a duplicate key"_ once, about a list that was
+  correct before and after. A `reactive()` mutation is not one repaint: `splice` notifies
+  once per element it shifts, and each of those intermediate arrays holds the item it just
+  copied in both its old slot and its new one — a duplicate the author never wrote, seen by
+  a paint the author never asked for. Both key warnings now wait for the end of the task,
+  and a paint that ends with every key accounted for cancels the pending message; a
+  duplicate or an unresolvable key path still standing when the mutation finishes still
+  warns, once per element as before. Painting itself is unchanged and still synchronous —
+  only the message moved. A test asserting on `console.warn` immediately after a mutation
+  now needs a microtask first.
+
 ## [1.0.0] - 2026-08-05
 
 ### Added

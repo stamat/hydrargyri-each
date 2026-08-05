@@ -26,6 +26,7 @@ var HgEach = class extends HgElement {
     this._template = null;
     this._painted = false;
     this._scanningBinds = false;
+    this._pendingKey = null;
   }
   _init() {
     if (this.hasAttribute("template")) {
@@ -130,12 +131,15 @@ var HgEach = class extends HgElement {
     const previous = this._keyedRows(parent);
     const claimed = /* @__PURE__ */ new Set();
     const rows = [];
+    let keysHeld = true;
     for (const row of entries) {
       const key = previous ? resolve(row, previous.path) : void 0;
       const claimable = previous !== null && key !== void 0 && !claimed.has(key);
       if (previous && key === void 0) {
+        keysHeld = false;
         this._warnKey(`hydrargyri-each: <hg-each key="${previous.raw}"> found no key on an item \u2014 its rows are re-cloned until the path resolves`);
       } else if (previous && !claimable) {
+        keysHeld = false;
         this._warnKey(`hydrargyri-each: <hg-each key="${previous.raw}"> has a duplicate key ${JSON.stringify(key)} \u2014 one row's nodes cannot serve two, so the later row is cloned fresh`);
       }
       let roots = claimable ? previous.rows.get(key) || null : null;
@@ -148,6 +152,7 @@ var HgEach = class extends HgElement {
       }
       rows.push({ ...row, roots });
     }
+    if (keysHeld) this._pendingKey = null;
     let cursor = inline ? this._template.nextSibling : parent.firstChild;
     for (const row of rows) {
       for (const root of row.roots) {
@@ -185,10 +190,23 @@ var HgEach = class extends HgElement {
   }
   // Once per element: a keying mistake is the same mistake on every repaint,
   // and a list that repaints on every keystroke would say so on every keystroke.
+  //
+  // Held to the end of the task rather than said at the paint that saw it: a
+  // reactive() splice notifies once per element it shifts, and each of those
+  // intermediate arrays holds the item it just copied in two slots — a
+  // duplicate key the author never wrote. The paint that settles clears the
+  // pending message, so only a key problem still standing when the mutation
+  // finishes is ever printed.
   _warnKey(message) {
-    if (this._warnedKey) return;
-    this._warnedKey = true;
-    console.warn(message);
+    if (this._warnedKey || this._pendingKey) return;
+    this._pendingKey = message;
+    queueMicrotask(() => {
+      const pending = this._pendingKey;
+      this._pendingKey = null;
+      if (!pending || this._warnedKey) return;
+      this._warnedKey = true;
+      console.warn(pending);
+    });
   }
   _paintRow(root, row) {
     const nodes = [root, ...root.querySelectorAll("[bind],[data-bind]")];

@@ -1,8 +1,9 @@
 // Covers the whole surface: the rows region contract (fallback until first
 // data, repainted after), item-relative bind painting including `.` and the
 // `$index` / `$key` coordinates, arrays and plain objects, `template="id"` and
-// the region it widens, keyed reuse — nodes kept, moved, dropped, and the
-// duplicate and missing-key fallbacks — reactive repaint, handler and condition
+// the region it widens, keyed reuse — nodes kept, moved, dropped, the
+// duplicate and missing-key fallbacks, and the key warning waiting for the
+// model to settle so a splice is not reported as a mistake — reactive repaint, handler and condition
 // fallthrough to the closest hydrargyri ancestor, scope around nested hydrargyri
 // elements, hg-each's own instance binds, share, reconnect, and the command
 // listener surviving a repaint.
@@ -495,7 +496,7 @@ test('key="$key" keys an object by its own keys, and key="." keys an array of pr
   expect(rows(primitives)[1]).toBe(salt)
 })
 
-test('duplicate keys warn and the second row gets nodes of its own — one node cannot be in two places', () => {
+test('duplicate keys warn and the second row gets nodes of its own — one node cannot be in two places', async () => {
   const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
   const root = mount(`<hg-each key="id"><ul>
     <template><li bind="name"></li></template>
@@ -504,10 +505,11 @@ test('duplicate keys warn and the second row gets nodes of its own — one node 
   el.items = [{ id: 1, name: 'Ada' }, { id: 1, name: 'Grace' }]
   expect(rows(el).map((li) => li.textContent)).toEqual(['Ada', 'Grace'])
   expect(rows(el)[0]).not.toBe(rows(el)[1])
+  await Promise.resolve()
   expect(warn).toHaveBeenCalledWith(expect.stringContaining('duplicate'))
 })
 
-test('a key path that reaches nothing warns once and the rows go back to being re-cloned', () => {
+test('a key path that reaches nothing warns once and the rows go back to being re-cloned', async () => {
   const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
   const root = mount(`<hg-each key="missing"><ul>
     <template><li bind="name"></li></template>
@@ -517,7 +519,42 @@ test('a key path that reaches nothing warns once and the rows go back to being r
   const ada = rows(el)[0]
   el.items = [{ name: 'Ada' }]
   expect(rows(el)[0]).not.toBe(ada)
+  await Promise.resolve()
   expect(warn).toHaveBeenCalledWith(expect.stringContaining('missing'))
+})
+
+test('a splice through a reactive model says nothing — the duplicate a keyed paint walks through is not one the author wrote', async () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+  const root = mount(`<hg-each key="id"><ul>
+    <template><li bind="name"></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  const items = reactive([{ id: 1, name: 'Ada' }, { id: 2, name: 'Grace' }, { id: 3, name: 'Hedy' }])
+  el.items = items
+  const grace = rows(el)[1]
+  // Every element the splice shifts down is one repaint, and each of those
+  // arrays holds the item it just copied in both its old slot and its new one.
+  items.splice(0, 1)
+  expect(rows(el).map((li) => li.textContent)).toEqual(['Grace', 'Hedy'])
+  expect(rows(el)[0]).toBe(grace)
+  await Promise.resolve()
+  expect(warn).not.toHaveBeenCalled()
+})
+
+test('a key warning cancelled by one settled paint still fires for the next mistake', async () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+  const root = mount(`<hg-each key="id"><ul>
+    <template><li bind="name"></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  const items = reactive([{ id: 1, name: 'Ada' }, { id: 2, name: 'Grace' }])
+  el.items = items
+  items.splice(0, 1)
+  await Promise.resolve()
+  expect(warn).not.toHaveBeenCalled()
+  items.push({ id: 2, name: 'Hedy' })
+  await Promise.resolve()
+  expect(warn).toHaveBeenCalledWith(expect.stringContaining('duplicate'))
 })
 
 test('without key a repaint still re-clones, keeping the naive contract for markup that does not opt in', () => {
