@@ -11,6 +11,8 @@ for the person who wrote the code.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-05
+
 ### Added
 
 - **`<hg-each>` — list rendering for hydrargyri.** Clones its `<template>` child once per item
