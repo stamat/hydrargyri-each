@@ -31,8 +31,9 @@ script/lint      # eslint (the authority; CI runs it)
 ## Principles
 
 - **The template is the author's; the rows region is hg-each's.** Everything
-  beside the template inside its parent gets cleared and re-cloned on every
-  paint — nothing else in the markup is ever touched.
+  beside the template inside its parent is repainted every time — the whole of
+  hg-each when `template="id"` points outside — and nothing else in the markup
+  is ever touched.
 - **Names, never code.** Row binds are parsed by hydrargyri's exported
   `parseBinds` — imported, never copied, so the grammar cannot fork.
 - **Test-driven.** The test is the spec; write it first. Never weaken, skip,
@@ -61,6 +62,16 @@ script/lint      # eslint (the authority; CI runs it)
   `_painted || _assigned.has('items') || items !== null`, because
   `_applyShared` erases the assigned mark right after writing — drop a clause
   and either share() stops painting or the fallback dies at init.
+- **Keys are read back off the row roots, never kept in a field.** `_keyedRows`
+  rebuilds the map from `hgKey` on the elements standing in the region, so a
+  row the page removed takes its entry with it and no map goes stale. A row
+  whose key is duplicated or missing is painted without `hgKey`, which keeps it
+  out of the next paint's map.
+- **The external template is resolved after the no-data gate in `_paint`, not
+  in `_init`.** The element upgrades as the parser reaches it, so a
+  `<template id>` further down the page does not exist yet; looking it up
+  before the gate makes the init paint report it missing. The warn fires once
+  per element for the same reason.
 - **`_scanningBinds` is a flag, not a `_scope` override, on purpose.** The
   instance bind scan must skip the rows region (row binds are item-relative
   and would warn as unknown keys) while the handler scan must keep it (row

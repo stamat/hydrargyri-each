@@ -15,15 +15,18 @@ library.
 - **No expression language.** Row binds are paths into the item, parsed by
   hydrargyri's own `parseBinds` — the parser is imported, never copied, so the
   grammar cannot fork here.
-- **No virtual DOM.** The one open door is keyed reuse: `key` is reserved so a
-  future version can move and patch existing row nodes instead of re-cloning.
-  Moving real nodes, ever; diffing a shadow copy of them, never.
+- **No virtual DOM.** Keyed reuse is the door that was open and is now walked
+  through: `key` moves and repaints the real row nodes instead of re-cloning
+  them. Moving real nodes, ever; diffing a shadow copy of them, never.
 - **No list operations.** Sorting, filtering, pagination, grouping — the array
   is the author's, transformed in JS and assigned. The moment an attribute
-  orders a list, it is a query language.
-- **No scope chain.** A row resolves names against its item, full stop. An
-  inner hg-each's rows do not see the outer item; an "index" or "parent"
-  variable is the first step toward a template language.
+  orders a list, it is a query language. An object in `items` is not one of
+  these: `Object.entries` order is the object's own, not an order hg-each chose.
+- **No scope chain.** A row resolves names against its item and its own
+  coordinates — `$index`, `$key` — and nothing else. The `$` namespace is
+  closed: an inner hg-each's rows do not see the outer item, `$parent` warns
+  rather than resolving, and a name that reaches out of the row is the first
+  step toward a template language.
 - **No two-way binding and no shadow DOM** — inherited from hydrargyri, same
   reasons.
 - **No dependencies.** hydrargyri is a peer, and the only one. It must be a peer:

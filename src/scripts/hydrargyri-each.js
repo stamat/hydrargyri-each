@@ -1,22 +1,48 @@
 import { HgElement, parseBinds } from 'hydrargyri'
 
+// Plain objects only, the same gate `reactive()` keeps: a Map, a Set or a class
+// instance has an iteration order and a meaning of "entry" that are its own,
+// and guessing one is how a list quietly paints the wrong thing. A reactive()
+// proxy passes — the prototype it reports is its target's.
+function isPlainObject(value) {
+  if (typeof value !== 'object' || value === null) return false
+  const proto = Object.getPrototypeOf(value)
+  return proto === Object.prototype || proto === null
+}
+
+// A row's coordinates, reachable by name. `$` opens a namespace no item field
+// can collide with — the item always wins a plain name, a coordinate always
+// wins a `$` one.
+const COORDINATES = new Map([['$index', 'index'], ['$key', 'key']])
+
 // `bind="."` parses to ['', ''] — the only shape a real path cannot take —
 // and means the item itself, the Mustache implicit iterator.
-function resolve(item, path) {
-  if (path.length === 2 && path[0] === '' && path[1] === '') return item
-  return path.reduce((value, key) => value !== null && value !== undefined ? value[key] : undefined, item)
+function resolve(row, path) {
+  if (path.length === 2 && path[0] === '' && path[1] === '') return row.item
+  if (path.length === 1 && COORDINATES.has(path[0])) return row[COORDINATES.get(path[0])]
+  // Anything else in the `$` namespace is a name hg-each does not carry —
+  // `$parent` and friends warn here rather than resolving into the item and
+  // painting nothing, because there is no scope chain to reach for.
+  if (path[0].startsWith('$')) {
+    console.warn(`hydrargyri-each: <hg-each> has no row coordinate "${path.join('.')}" — ${[...COORDINATES.keys()].join(' and ')} are the only ones`)
+    return undefined
+  }
+  return path.reduce((value, key) => value !== null && value !== undefined ? value[key] : undefined, row.item)
 }
 
 /**
- * `<hg-each>` — list rendering for hydrargyri. Clones its `<template>` child once
- * per item of the `items` property, painting the clone's binds with paths
- * resolved into the item — names, never code, same grammar as hydrargyri.
+ * `<hg-each>` — list rendering for hydrargyri. Clones a `<template>` — its own child,
+ * or the one `template="id"` names — once per entry of the `items` array or
+ * object, painting the clone's binds with paths resolved into the item, plus
+ * the `$index` and `$key` coordinates — names, never code, same grammar as
+ * hydrargyri.
  *
- * Everything beside the template inside its parent is the rows region,
- * hg-each's to clear and repaint: server-rendered fallback rows stand until
- * items first arrives, so the page reads without the script. Every repaint
- * re-clones from scratch — `key` is reserved for the keyed version and does
- * nothing yet.
+ * Everything beside the template inside its parent is the rows region, hg-each's
+ * to clear and repaint — the whole of hg-each when the template is external.
+ * Server-rendered fallback rows stand until items first arrives, so the page
+ * reads without the script. A repaint re-clones from scratch unless `key` names
+ * what makes a row itself, and then the rows that keep their key keep their
+ * nodes.
  *
  * @example
  * <hg-each>
@@ -38,15 +64,18 @@ export default class HgEach extends HgElement {
   }
 
   _init() {
-    this._template = this._findTemplate()
-    if (!this._template) {
-      console.warn('hydrargyri-each: <hg-each> has no <template> child — markup left as authored')
-    } else if (!this._template.content.firstElementChild) {
-      // Row binds live on elements, so a template of text alone can only paint
-      // that text once per item. Dropped to null to take the no-template path:
-      // one bail, and the fallback rows stay standing.
-      console.warn('hydrargyri-each: <hg-each> template has no element to clone — markup left as authored')
-      this._template = null
+    // A template named by id is resolved at the first paint, never here: the
+    // element upgrades as the parser reaches it, and a `<template id>` further
+    // down the page does not exist yet.
+    if (this.hasAttribute('template')) {
+      if (this._findTemplate()) {
+        console.warn('hydrargyri-each: <hg-each> has both a <template> child and template="…" — the attribute wins, and the child stands in the rows region the first paint clears')
+      }
+    } else {
+      this._template = this._usable(this._findTemplate())
+      if (!this._template) {
+        console.warn('hydrargyri-each: <hg-each> has no <template> child — markup left as authored')
+      }
     }
     super._init()
   }
@@ -56,6 +85,43 @@ export default class HgEach extends HgElement {
       if (this._scope(template)) return template
     }
     return null
+  }
+
+  // Row binds live on elements, so a template of text alone can only paint that
+  // text once per item. Null takes the no-template path: one bail, and the
+  // fallback rows stay standing.
+  _usable(template) {
+    if (!template) return null
+    if (!template.content.firstElementChild) {
+      console.warn('hydrargyri-each: <hg-each> template has no element to clone — markup left as authored')
+      return null
+    }
+    return template
+  }
+
+  // Re-looked-up on every paint, because the page may have grown the template
+  // since the last one — but warned about only once, or a repainting list turns
+  // one authoring mistake into a console full of them.
+  _findById() {
+    const id = this.getAttribute('template')
+    const root = this.getRootNode()
+    const found = typeof root.getElementById === 'function' ? root.getElementById(id) : null
+    if (!found || found.tagName !== 'TEMPLATE') {
+      if (!this._warnedById) {
+        console.warn(`hydrargyri-each: <hg-each template="${id}"> found ${found ? 'no <template>' : 'no element'} with that id — markup left as authored`)
+        this._warnedById = true
+      }
+      return null
+    }
+    return this._usable(found)
+  }
+
+  // With an external template there is no "beside the template" inside hg-each,
+  // so hg-each itself is the region — everything in it is rows, its own binds
+  // and an empty-state node included, which is why they belong outside.
+  _regionParent() {
+    if (this.hasAttribute('template')) return this
+    return this._template && this._template.parentNode
   }
 
   // Rows carry item-relative binds painted per clone in _paint — the instance
@@ -75,7 +141,7 @@ export default class HgEach extends HgElement {
   }
 
   _inRows(el) {
-    const parent = this._template && this._template.parentNode
+    const parent = this._regionParent()
     if (!parent || el === parent || !parent.contains(el)) return false
     let node = el
     while (node && node.parentNode !== parent) node = node.parentNode
@@ -88,43 +154,85 @@ export default class HgEach extends HgElement {
   }
 
   _paint() {
-    if (!this._template) return
     // The declared default null is "no data yet" and the fallback rows stand.
     // The region is hg-each's from the author's first assignment — even of
     // null — or from a value already present at init, the share() path, whose
     // application erases the assigned mark before this runs.
     if (!this._painted && !this._assigned.has('items') && this.items === null) return
+    // Looked up after that gate, never before: the paint that runs during init
+    // has no data yet, and a template authored further down the page would be
+    // reported missing while the parser is still on its way to it.
+    if (this.hasAttribute('template')) this._template = this._findById()
+    if (!this._template) return
     const items = this.items
-    if (items !== null && !Array.isArray(items)) {
-      console.warn('hydrargyri-each: <hg-each> items takes an array or null — rows left standing')
+    if (items !== null && !Array.isArray(items) && !isPlainObject(items)) {
+      console.warn('hydrargyri-each: <hg-each> items takes an array, a plain object or null — rows left standing')
       return
     }
-    this._painted = true
-    const parent = this._template.parentNode
-    // childNodes, not children: a clone carries the template's own whitespace,
-    // so an element-only sweep leaves those text nodes behind to pile up on
-    // every repaint.
-    for (const child of [...parent.childNodes]) {
-      if (child !== this._template) child.remove()
+    const entries = []
+    if (Array.isArray(items)) {
+      // forEach, not map: a reactive() splice repaints mid-operation, when the
+      // array still holds a hole, and forEach skips holes where map keeps them.
+      items.forEach((item, index) => entries.push({ item, index, key: undefined }))
+    } else if (items) {
+      Object.entries(items).forEach(([key, item], index) => entries.push({ item, index, key }))
     }
+    this._painted = true
+    const parent = this._regionParent()
+    const inline = this._template.parentNode === parent
+    // An inline template divides the region: rows are always written after it,
+    // so anything before it is last paint's and goes now.
+    if (inline) while (parent.firstChild && parent.firstChild !== this._template) parent.firstChild.remove()
+    // Nothing but rows survives in the region — a clone carries the template's
+    // own whitespace in with it, and leaving those text nodes both piles them
+    // up on every repaint and puts non-rows in the way of the walk below.
+    for (const child of [...parent.childNodes]) {
+      if (child !== this._template && child.nodeType !== 1) child.remove()
+    }
+    const previous = this._keyedRows(parent)
+    const claimed = new Set()
     const rows = []
-    if (items && items.length) {
-      const fragment = document.createDocumentFragment()
-      items.forEach((item, index) => {
-        const clone = document.importNode(this._template.content, true)
-        for (const root of clone.children) {
-          root.setAttribute('hg-row', index)
-          root.hgItem = item
-        }
-        rows.push({ item, roots: [...clone.children] })
-        fragment.appendChild(clone)
-      })
-      parent.insertBefore(fragment, this._template.nextSibling)
+    for (const row of entries) {
+      const key = previous ? resolve(row, previous.path) : undefined
+      // A key claimed twice, or one that resolves to nothing, identifies no row
+      // — it paints as an unkeyed clone and stays out of the next paint's map,
+      // because a key naming two rows would hand one row's nodes to both.
+      const claimable = previous !== null && key !== undefined && !claimed.has(key)
+      if (previous && key === undefined) {
+        this._warnKey(`hydrargyri-each: <hg-each key="${previous.raw}"> found no key on an item — its rows are re-cloned until the path resolves`)
+      } else if (previous && !claimable) {
+        this._warnKey(`hydrargyri-each: <hg-each key="${previous.raw}"> has a duplicate key ${JSON.stringify(key)} — one row's nodes cannot serve two, so the later row is cloned fresh`)
+      }
+      let roots = claimable ? previous.rows.get(key) || null : null
+      if (claimable) claimed.add(key)
+      if (!roots) roots = [...document.importNode(this._template.content, true).children]
+      for (const root of roots) {
+        root.setAttribute('hg-row', row.index)
+        root.hgItem = row.item
+        if (claimable) root.hgKey = key
+      }
+      rows.push({ ...row, roots })
+    }
+    // Walk the region against the rows it should hold: a node already in place
+    // is stepped over, one that belongs earlier is moved, and whatever the walk
+    // never reaches is last paint's and removed. Reused nodes that do not move
+    // keep everything the DOM holds for them — focus, selection, scroll.
+    let cursor = inline ? this._template.nextSibling : parent.firstChild
+    for (const row of rows) {
+      for (const root of row.roots) {
+        if (root === cursor) cursor = cursor.nextSibling
+        else parent.insertBefore(root, cursor)
+      }
+    }
+    while (cursor) {
+      const next = cursor.nextSibling
+      cursor.remove()
+      cursor = next
     }
     // Painted after insertion, not before: scope is closest(), and only the
     // attached tree can say a nested hydrargyri element owns its own binds.
-    for (const { item, roots } of rows) {
-      for (const root of roots) this._paintRow(root, item)
+    for (const row of rows) {
+      for (const root of row.roots) this._paintRow(root, row)
     }
     // The rescan wires `on` in the fresh rows — and tears down the command
     // listener _init wired outside the scan, so it comes back here.
@@ -134,13 +242,39 @@ export default class HgEach extends HgElement {
     this._listeners.push({ el: this, event: 'command', listener })
   }
 
-  _paintRow(root, item) {
+  // The keys are read back off the row roots rather than kept in a field: a row
+  // the page removed takes its entry with it, so there is no map to go stale,
+  // and a reconnect finds exactly the nodes that are still standing.
+  _keyedRows(parent) {
+    const raw = this.getAttribute('key')
+    if (!raw) return null
+    const rows = new Map()
+    for (const node of parent.children) {
+      if (node === this._template || !('hgKey' in node)) continue
+      const roots = rows.get(node.hgKey)
+      if (roots) roots.push(node)
+      else rows.set(node.hgKey, [node])
+    }
+    // `key="."` splits to ['', ''], the shape resolve() reads as the item
+    // itself, and `key="$key"` to a coordinate — both for free, same grammar.
+    return { raw, path: raw.split('.'), rows }
+  }
+
+  // Once per element: a keying mistake is the same mistake on every repaint,
+  // and a list that repaints on every keystroke would say so on every keystroke.
+  _warnKey(message) {
+    if (this._warnedKey) return
+    this._warnedKey = true
+    console.warn(message)
+  }
+
+  _paintRow(root, row) {
     const nodes = [root, ...root.querySelectorAll('[bind],[data-bind]')]
     for (const node of nodes) {
       const raw = node.getAttribute('bind') || node.getAttribute('data-bind')
       if (!raw || !super._scope(node)) continue
       for (const entry of parseBinds(raw)) {
-        this._render({ ...entry, el: node }, resolve(item, entry.path))
+        this._render({ ...entry, el: node }, resolve(row, entry.path))
       }
     }
   }

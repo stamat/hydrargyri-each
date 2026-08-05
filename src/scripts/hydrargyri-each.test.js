@@ -1,12 +1,15 @@
 // Covers the whole surface: the rows region contract (fallback until first
-// data, clear-and-clone after), item-relative bind painting including `.`,
-// reactive repaint, handler and condition fallthrough to the closest hydrargyri
-// ancestor, scope around nested hydrargyri elements, hg-each's own instance binds,
-// share, reconnect, and the command listener surviving a repaint.
+// data, repainted after), item-relative bind painting including `.` and the
+// `$index` / `$key` coordinates, arrays and plain objects, `template="id"` and
+// the region it widens, keyed reuse — nodes kept, moved, dropped, and the
+// duplicate and missing-key fallbacks — reactive repaint, handler and condition
+// fallthrough to the closest hydrargyri ancestor, scope around nested hydrargyri
+// elements, hg-each's own instance binds, share, reconnect, and the command
+// listener surviving a repaint.
 // Deliberately not covered: the bind and on grammars themselves — hydrargyri's own
-// suite owns them, hg-each only routes through them; and row DOM state across
-// repaints (focus, input values) — naive re-clone discards it by design, `key`
-// is reserved for the keyed version.
+// suite owns them, hg-each only routes through them; and focus surviving a keyed
+// reorder, because jsdom's focus does not model what a browser does when a node
+// moves — the node identity the reuse rests on is asserted instead.
 import { jest } from '@jest/globals'
 import hydrargyri, { reactive } from 'hydrargyri'
 import HgEach from './hydrargyri-each.js'
@@ -132,6 +135,40 @@ test('a repaint clears the whole region, not only its elements — nothing piles
   expect(rows(el).map((li) => li.textContent)).toEqual(['salt', 'stone'])
 })
 
+test('a plain object paints a row per entry, in insertion order, with $key naming each one', () => {
+  const root = mount(`<hg-each><ul>
+    <template><li><b bind="$key"></b> <span bind="role"></span> <i bind="$index"></i></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  el.items = { ada: { role: 'admin' }, grace: { role: 'member' } }
+  expect(rows(el).map((li) => li.querySelector('b').textContent)).toEqual(['ada', 'grace'])
+  expect(rows(el).map((li) => li.querySelector('span').textContent)).toEqual(['admin', 'member'])
+  expect(rows(el).map((li) => li.querySelector('i').textContent)).toEqual(['0', '1'])
+})
+
+test('hg-row stays the position over an object — the key lives in $key, never in the attribute', () => {
+  const root = mount(`<hg-each><ul>
+    <template><li bind="."></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  el.items = { ada: 'admin', grace: 'member' }
+  expect(rows(el).map((li) => li.getAttribute('hg-row'))).toEqual(['0', '1'])
+  expect(rows(el).map((li) => li.hgItem)).toEqual(['admin', 'member'])
+})
+
+test('a reactive object repaints on mutation, the same door an array has', () => {
+  const root = mount(`<hg-each><ul>
+    <template><li bind="$key"></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  const items = reactive({ ada: 'admin' })
+  el.items = items
+  items.grace = 'member'
+  expect(rows(el).map((li) => li.textContent)).toEqual(['ada', 'grace'])
+  delete items.ada
+  expect(rows(el).map((li) => li.textContent)).toEqual(['grace'])
+})
+
 test('a non-array items value warns and leaves the rows standing', () => {
   const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
   const root = mount(`<hg-each><ul><template><li bind="."></li></template></ul></hg-each>`)
@@ -161,6 +198,58 @@ test('a template holding no element warns and leaves the markup as authored — 
   expect(warn).toHaveBeenCalledWith(expect.stringContaining('no element to clone'))
 })
 
+test('template="id" clones a template from outside, and then hg-each itself is the rows region', () => {
+  const root = mount(`
+    <template id="card-row"><article bind="."></article></template>
+    <hg-each template="card-row"><article>fallback</article></hg-each>
+  `)
+  const el = root.querySelector('hg-each')
+  expect(el.querySelector('article').textContent).toBe('fallback')
+  el.items = ['salt', 'stone']
+  expect([...el.children].map((node) => node.textContent)).toEqual(['salt', 'stone'])
+})
+
+test('an external template is looked up at the first paint, so it may be authored after hg-each', () => {
+  const root = mount(`<hg-each template="late-row"><p>fallback</p></hg-each>`)
+  const el = root.querySelector('hg-each')
+  root.insertAdjacentHTML('beforeend', '<template id="late-row"><p bind="."></p></template>')
+  el.items = ['salt']
+  expect([...el.children].map((node) => node.textContent)).toEqual(['salt'])
+})
+
+test('template="id" naming nothing warns and leaves the markup as authored', () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+  const root = mount(`<hg-each template="nowhere"><p>as authored</p></hg-each>`)
+  const el = root.querySelector('hg-each')
+  el.items = ['salt']
+  expect([...el.children].map((node) => node.textContent)).toEqual(['as authored'])
+  expect(warn).toHaveBeenCalledWith(expect.stringContaining('nowhere'))
+})
+
+test('template="id" naming something that is not a template warns rather than cloning it', () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+  const root = mount(`
+    <p id="not-a-template">prose</p>
+    <hg-each template="not-a-template"><p>as authored</p></hg-each>
+  `)
+  const el = root.querySelector('hg-each')
+  el.items = ['salt']
+  expect([...el.children].map((node) => node.textContent)).toEqual(['as authored'])
+  expect(warn).toHaveBeenCalledWith(expect.stringContaining('not-a-template'))
+})
+
+test('an inline template beside template="id" warns — the region would clear the inline one away', () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+  const root = mount(`
+    <template id="outer-row"><p bind="."></p></template>
+    <hg-each template="outer-row"><template><p>ignored</p></template></hg-each>
+  `)
+  const el = root.querySelector('hg-each')
+  el.items = ['salt']
+  expect([...el.children].map((node) => node.textContent)).toEqual(['salt'])
+  expect(warn).toHaveBeenCalledWith(expect.stringContaining('both'))
+})
+
 test('binds in fallback rows are item-relative, not hg-each state, and the scan does not warn', () => {
   const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
   mount(`<hg-each><ul>
@@ -168,6 +257,37 @@ test('binds in fallback rows are item-relative, not hg-each state, and the scan 
     <li bind="name">fallback copied from the template</li>
   </ul></hg-each>`)
   expect(warn).not.toHaveBeenCalled()
+})
+
+test('$index binds the row position, and it is a coordinate rather than a field of the item', () => {
+  const root = mount(`<hg-each><ul>
+    <template><li><b bind="$index"></b> <span bind="."></span></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  el.items = ['salt', 'stone', 'sulphur']
+  expect(rows(el).map((li) => li.querySelector('b').textContent)).toEqual(['0', '1', '2'])
+  el.items = [{ $index: 'the item said so' }]
+  expect(rows(el)[0].querySelector('b').textContent).toBe('0')
+})
+
+test('$key is the object key, so over an array it resolves to nothing and the node stays as authored', () => {
+  const root = mount(`<hg-each><ul>
+    <template><li bind="$key">as authored</li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  el.items = ['salt']
+  expect(rows(el)[0].textContent).toBe('as authored')
+})
+
+test('a $ name that is not a coordinate warns — there is no scope chain to reach for', () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+  const root = mount(`<hg-each><ul>
+    <template><li bind="$parent">as authored</li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  el.items = ['salt']
+  expect(rows(el)[0].textContent).toBe('as authored')
+  expect(warn).toHaveBeenCalledWith(expect.stringContaining('$parent'))
 })
 
 test('a row carries its item and index, on the root, for the handler to read', () => {
@@ -313,6 +433,115 @@ test('a shared null is still "no data" and the fallback stands — unlike an ins
   expect(rows(el).map((li) => li.textContent)).toEqual(['fallback'])
   el.items = null
   expect(rows(el)).toEqual([])
+})
+
+test('a keyed row keeps its own nodes across a repaint — that is what row DOM state survives on', () => {
+  const root = mount(`<hg-each key="id"><ul>
+    <template><li><b bind="name"></b><input></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  el.items = [{ id: 1, name: 'Ada' }, { id: 2, name: 'Grace' }]
+  const [first, second] = rows(el)
+  first.querySelector('input').value = 'half-typed'
+  el.items = [{ id: 1, name: 'Ada Lovelace' }, { id: 2, name: 'Grace' }]
+  expect(rows(el)[0]).toBe(first)
+  expect(rows(el)[1]).toBe(second)
+  expect(rows(el)[0].querySelector('input').value).toBe('half-typed')
+  expect(rows(el)[0].querySelector('b').textContent).toBe('Ada Lovelace')
+})
+
+test('a keyed reorder moves the nodes it already has, and hg-row follows the new position', () => {
+  const root = mount(`<hg-each key="id"><ul>
+    <template><li bind="name"></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  el.items = [{ id: 1, name: 'Ada' }, { id: 2, name: 'Grace' }, { id: 3, name: 'Klara' }]
+  const [ada, grace, klara] = rows(el)
+  el.items = [{ id: 3, name: 'Klara' }, { id: 1, name: 'Ada' }, { id: 2, name: 'Grace' }]
+  expect(rows(el)).toEqual([klara, ada, grace])
+  expect(rows(el).map((li) => li.getAttribute('hg-row'))).toEqual(['0', '1', '2'])
+})
+
+test('a key that is gone takes its row with it, and a key that is new arrives as a clone', () => {
+  const root = mount(`<hg-each key="id"><ul>
+    <template><li bind="name"></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  el.items = [{ id: 1, name: 'Ada' }, { id: 2, name: 'Grace' }]
+  const [ada, grace] = rows(el)
+  el.items = [{ id: 2, name: 'Grace' }, { id: 3, name: 'Klara' }]
+  expect(rows(el)[0]).toBe(grace)
+  expect(rows(el)[1]).not.toBe(ada)
+  expect(rows(el).map((li) => li.textContent)).toEqual(['Grace', 'Klara'])
+  expect(ada.isConnected).toBe(false)
+})
+
+test('key="$key" keys an object by its own keys, and key="." keys an array of primitives by value', () => {
+  const object = mount(`<hg-each key="$key"><ul>
+    <template><li bind="."></li></template>
+  </ul></hg-each>`).firstElementChild
+  object.items = { ada: 'admin', grace: 'member' }
+  const ada = rows(object)[0]
+  object.items = { grace: 'member', ada: 'owner' }
+  expect(rows(object)[1]).toBe(ada)
+  expect(rows(object)[1].textContent).toBe('owner')
+
+  const primitives = mount(`<hg-each key="."><ul>
+    <template><li bind="."></li></template>
+  </ul></hg-each>`).firstElementChild
+  primitives.items = ['salt', 'stone']
+  const salt = rows(primitives)[0]
+  primitives.items = ['stone', 'salt']
+  expect(rows(primitives)[1]).toBe(salt)
+})
+
+test('duplicate keys warn and the second row gets nodes of its own — one node cannot be in two places', () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+  const root = mount(`<hg-each key="id"><ul>
+    <template><li bind="name"></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  el.items = [{ id: 1, name: 'Ada' }, { id: 1, name: 'Grace' }]
+  expect(rows(el).map((li) => li.textContent)).toEqual(['Ada', 'Grace'])
+  expect(rows(el)[0]).not.toBe(rows(el)[1])
+  expect(warn).toHaveBeenCalledWith(expect.stringContaining('duplicate'))
+})
+
+test('a key path that reaches nothing warns once and the rows go back to being re-cloned', () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+  const root = mount(`<hg-each key="missing"><ul>
+    <template><li bind="name"></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  el.items = [{ name: 'Ada' }]
+  const ada = rows(el)[0]
+  el.items = [{ name: 'Ada' }]
+  expect(rows(el)[0]).not.toBe(ada)
+  expect(warn).toHaveBeenCalledWith(expect.stringContaining('missing'))
+})
+
+test('without key a repaint still re-clones, keeping the naive contract for markup that does not opt in', () => {
+  const root = mount(`<hg-each><ul>
+    <template><li bind="."></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  el.items = ['salt']
+  const salt = rows(el)[0]
+  el.items = ['salt']
+  expect(rows(el)[0]).not.toBe(salt)
+})
+
+test('keyed reuse holds over an external template, where the region is hg-each itself', () => {
+  const root = mount(`
+    <template id="keyed-card"><article bind="name"></article></template>
+    <hg-each template="keyed-card" key="id"><article>fallback</article></hg-each>
+  `)
+  const el = root.querySelector('hg-each')
+  el.items = [{ id: 1, name: 'Ada' }, { id: 2, name: 'Grace' }]
+  const [ada, grace] = [...el.children]
+  el.items = [{ id: 2, name: 'Grace' }, { id: 1, name: 'Ada' }]
+  expect([...el.children]).toEqual([grace, ada])
+  expect([...el.children].map((node) => node.getAttribute('hg-row'))).toEqual(['0', '1'])
 })
 
 test('a moved hg-each rescans and repaints on reconnect', () => {
