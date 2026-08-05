@@ -1,4 +1,4 @@
-# <sup>☿</sup> hydrargyri-each
+# <sup>☿</sup> hydrargyri-each [![npm version](https://img.shields.io/npm/v/hydrargyri-each)](https://www.npmjs.com/package/hydrargyri-each) [![ci](https://img.shields.io/github/actions/workflow/status/stamat/hydrargyri-each/ci.yml?branch=main&label=ci)](https://github.com/stamat/hydrargyri-each/actions/workflows/ci.yml) [![license mit](https://img.shields.io/badge/license-MIT-green)](https://github.com/stamat/hydrargyri-each/blob/main/LICENSE)
 
 > List rendering for [hydrargyri](https://github.com/stamat/hydrargyri) — `<hg-each>`
 > clones the `<template>` you wrote, one row per item, binding by names, never
