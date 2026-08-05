@@ -156,6 +156,10 @@ way. No ancestor answering warns, as in hydrargyri.
 - **Sorting, filtering, pagination.** The array is yours: transform it in JS
   and assign the result. An option here would be a query language growing in
   an attribute.
+- **Nested lists, declaratively.** A bind writes text, markup, a form field's
+  `value` or an attribute — never an arbitrary property, and `items` is one. An
+  `<hg-each>` inside a row is handed its list in JS, through the row's
+  `hgItem`; no bind carries an item's array into the inner element.
 - **Sanitizing.** `:html` in a row is `innerHTML`, verbatim, same threat model
   as hydrargyri: bind your own state, never user input. `text` and `attr` stay
   inert — there is a test proving markup through a text bind cannot become
