@@ -200,6 +200,35 @@ test('a named condition in a row asks the closest hydrargyri ancestor when hg-ea
   expect(second.querySelector('s').hidden).toBe(true)
 })
 
+test('on and #conditions pass through an hg-each ancestor to the element that answers', () => {
+  const name = tag()
+  const seen = []
+  hydrargyri(name, {
+    handlers: {
+      pick(e, owner) {
+        seen.push([owner.tagName.toLowerCase(), e.target.closest('[hg-row]').hgItem.flag])
+      }
+    },
+    conditions: { done: (value) => value === true }
+  })
+  const root = mount(`<${name}>
+    <hg-each><ul>
+      <template><li>
+        <hg-each><ol><template><li><button on="click:pick"></button><s bind="flag:if#done">done</s></li></template></ol></hg-each>
+      </li></template>
+    </ul></hg-each>
+  </${name}>`)
+  const outer = root.querySelector('hg-each')
+  outer.items = ['group']
+  const inner = outer.querySelector('hg-each')
+  inner.items = [{ flag: true }, { flag: false }]
+  const [first, second] = rows(inner)
+  expect(first.querySelector('s').hidden).toBe(false)
+  expect(second.querySelector('s').hidden).toBe(true)
+  second.querySelector('button').click()
+  expect(seen).toEqual([[name, false]])
+})
+
 test('a nested hydrargyri element inside a row keeps its own binds — the row item never reaches them', () => {
   const name = tag()
   hydrargyri(name, { properties: ['label'] })

@@ -148,11 +148,12 @@ export default class HgEach extends HgElement {
   }
 
   // The mirror of _handle for `if#name` and `unless#name`: a condition hg-each
-  // does not hold is asked of the closest hydrargyri ancestor.
+  // does not hold is asked of the closest hydrargyri ancestor — whose own _render
+  // walks on if it is an hg-each too, so the warn lands on the last hop.
   _render(bind, value) {
     if (bind.attr && (bind.type === 'if' || bind.type === 'unless') && typeof this.conditions[bind.attr] !== 'function') {
       const owner = this._hgAncestor()
-      if (owner && typeof owner.conditions[bind.attr] === 'function') return owner._render(bind, value)
+      if (owner) return owner._render(bind, value)
     }
     return super._render(bind, value)
   }
