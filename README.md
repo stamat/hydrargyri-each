@@ -45,13 +45,13 @@ replaces them.
 
 ## Against the alternatives
 
-|                                                                                     | Template lives in | Logic in markup            | Keyed reorder           | No-script fallback       | Pick it when                                    |
-| ----------------------------------------------------------------------------------- | ----------------- | -------------------------- | ----------------------- | ------------------------ | ----------------------------------------------- |
-| [Alpine `x-for`](https://alpinejs.dev/directives/for)                               | the page          | yes — evaluated JS         | yes, `:key`             | yes, template is inert   | you want expressions inline and accept the eval |
-| [Lit `repeat`](https://lit.dev/docs/templates/lists/)                               | JS                | no — logic is JS anyway    | yes, key function       | no — JS renders the list | you are building an app, not upgrading a page   |
-| [Stimulus](https://stimulus.hotwired.dev/handbook/origin)                           | the server        | no                         | no — server re-renders  | yes, by definition       | the server owns every list change               |
-| [`<template>` alone](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/template) | the page     | no                         | you write it            | yes                      | one list, and you enjoy `importNode`            |
-| hg-each                                                                              | the page          | no — names, never code     | yes, `key`              | yes                      | the markup exists first and hydrargyri is already on the page |
+|                                                                                          | Template lives in | Logic in markup         | Keyed reorder          | No-script fallback       | Pick it when                                                  |
+| ---------------------------------------------------------------------------------------- | ----------------- | ----------------------- | ---------------------- | ------------------------ | ------------------------------------------------------------- |
+| [Alpine `x-for`](https://alpinejs.dev/directives/for)                                    | the page          | yes — evaluated JS      | yes, `:key`            | yes, template is inert   | you want expressions inline and accept the eval               |
+| [Lit `repeat`](https://lit.dev/docs/templates/lists/)                                    | JS                | no — logic is JS anyway | yes, key function      | no — JS renders the list | you are building an app, not upgrading a page                 |
+| [Stimulus](https://stimulus.hotwired.dev/handbook/origin)                                | the server        | no                      | no — server re-renders | yes, by definition       | the server owns every list change                             |
+| [`<template>` alone](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/template) | the page          | no                      | you write it           | yes                      | one list, and you enjoy `importNode`                          |
+| hg-each                                                                                  | the page          | no — names, never code  | yes, `key`             | yes                      | the markup exists first and hydrargyri is already on the page |
 
 Keyed reorder is opt-in and off by default: without `key` every repaint clears
 the rows and clones again, which discards row DOM state — focus, a half-typed
@@ -59,9 +59,6 @@ input, a playing video. With `key` the rows that keep their key keep their
 nodes, and a list the user is typing into survives its own repaints.
 
 ## Install
-
-Not on npm yet — the commands below describe the shape of the release, not a
-package you can pull today.
 
 ```bash
 npm install hydrargyri hydrargyri-each
@@ -76,7 +73,11 @@ shared copy lives — two copies of hydrargyri cannot see each other's elements:
 
 ```html
 <script type="importmap">
-  { "imports": { "hydrargyri": "https://cdn.jsdelivr.net/npm/hydrargyri/dist/hydrargyri.mjs" } }
+  {
+    "imports": {
+      "hydrargyri": "https://cdn.jsdelivr.net/npm/hydrargyri/dist/hydrargyri.mjs"
+    }
+  }
 </script>
 <script type="module">
   import "https://cdn.jsdelivr.net/npm/hydrargyri-each/dist/hydrargyri-each.mjs";
@@ -104,11 +105,13 @@ after. Content that must survive goes outside the template's parent:
 
 ```html
 <hg-each>
-  <p bind="items.length">3</p>   <!-- hg-each's own bind, safe here -->
+  <p bind="items.length">3</p>
+  <!-- hg-each's own bind, safe here -->
   <p bind="items.length:unless">Nothing here yet</p>
   <ul>
     <template><li bind="."></li></template>
-    <li>fallback</li>             <!-- rows region: replaced at first paint -->
+    <li>fallback</li>
+    <!-- rows region: replaced at first paint -->
   </ul>
 </hg-each>
 ```
@@ -133,7 +136,9 @@ the template may be authored anywhere, including after the `<hg-each>` that
 uses it:
 
 ```html
-<template id="card"><article><h3 bind="title"></h3></article></template>
+<template id="card"
+  ><article><h3 bind="title"></h3></article
+></template>
 
 <hg-each template="card">
   <article><h3>Server-rendered fallback</h3></article>
@@ -183,9 +188,15 @@ into the new order and repainted in place, new keys arrive as clones, and
 vanished keys take their rows with them.
 
 ```html
-<hg-each key="id">          <!-- a path into the item -->
-<hg-each key="$key">        <!-- the object's own keys -->
-<hg-each key=".">           <!-- the item itself, for arrays of primitives -->
+<hg-each key="id">
+  <!-- a path into the item -->
+  <hg-each key="$key">
+    <!-- the object's own keys -->
+    <hg-each key=".">
+      <!-- the item itself, for arrays of primitives --></hg-each
+    ></hg-each
+  ></hg-each
+>
 ```
 
 The path is the same grammar the binds use, resolved against the item, so
