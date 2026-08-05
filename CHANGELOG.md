@@ -19,7 +19,9 @@ for the person who wrote the code.
   template inside its parent is the rows region: server-rendered fallback rows stand
   until `items` first arrives, so the page reads without the script, and every paint
   after clears and re-clones it. `null` and `[]` paint no rows; a non-array warns and touches nothing;
-  a `reactive()` array repaints on mutation.
+  a `reactive()` array repaints on mutation. A missing `<template>`, or one holding no element
+  to clone, warns and leaves the markup as authored — a broken list degrades to the
+  server-rendered one, never to an empty container.
 - **Rows carry their coordinates.** Each row root wears `hg-row="<index>"` as an
   attribute — a styling hook too — and the item itself as a `hgItem` property, for
   handlers reached through `closest('[hg-row]')`.

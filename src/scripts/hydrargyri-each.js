@@ -41,6 +41,12 @@ export default class HgEach extends HgElement {
     this._template = this._findTemplate()
     if (!this._template) {
       console.warn('hydrargyri-each: <hg-each> has no <template> child — markup left as authored')
+    } else if (!this._template.content.firstElementChild) {
+      // Row binds live on elements, so a template of text alone can only paint
+      // that text once per item. Dropped to null to take the no-template path:
+      // one bail, and the fallback rows stay standing.
+      console.warn('hydrargyri-each: <hg-each> template has no element to clone — markup left as authored')
+      this._template = null
     }
     super._init()
   }

@@ -101,6 +101,7 @@ after. Content that must survive goes outside the template's parent:
 ```html
 <hg-each>
   <p bind="items.length">3</p>   <!-- hg-each's own bind, safe here -->
+  <p bind="items.length:unless">Nothing here yet</p>
   <ul>
     <template><li bind="."></li></template>
     <li>fallback</li>             <!-- rows region: replaced at first paint -->
@@ -108,9 +109,18 @@ after. Content that must survive goes outside the template's parent:
 </hg-each>
 ```
 
+That second bind is the empty state, and it needs nothing new: `items.length`
+is hg-each's own, `:unless` hides the node while the list has items and shows
+it while it does not. `:if` is the other way round.
+
 `<template>` is script-supporting content, valid directly inside `<ul>`,
 `<tbody>`, `<select>` — hg-each wraps the list container; it can never sit
 between `<ul>` and its `<li>`s, that is not valid HTML.
+
+**A template that cannot paint rows warns and changes nothing.** No
+`<template>` at all, or one holding text without an element to clone — either
+way the markup stays exactly as authored, so a broken list degrades to the
+server-rendered one rather than to an empty container.
 
 **Binds in rows resolve into the item.** The full hydrargyri grammar —
 `path[:type[#attr]][;more]`, so `text`, `html`, `value`, `attr#name`, `if`,

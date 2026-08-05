@@ -152,6 +152,15 @@ test('without a template child hg-each warns and leaves the markup as authored',
   expect(warn).toHaveBeenCalled()
 })
 
+test('a template holding no element warns and leaves the markup as authored — there is nothing to clone', () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+  const root = mount(`<hg-each><ul><template>text alone binds nothing</template><li>as authored</li></ul></hg-each>`)
+  const el = root.firstElementChild
+  el.items = ['salt', 'stone']
+  expect(rows(el).map((li) => li.textContent)).toEqual(['as authored'])
+  expect(warn).toHaveBeenCalledWith(expect.stringContaining('no element to clone'))
+})
+
 test('binds in fallback rows are item-relative, not hg-each state, and the scan does not warn', () => {
   const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
   mount(`<hg-each><ul>
@@ -267,6 +276,21 @@ test("hg-each's own binds outside the rows region paint from its state — items
   const el = root.firstElementChild
   el.items = ['salt', 'stone']
   expect(el.querySelector('p').textContent).toBe('2')
+})
+
+test('an empty list can say so — items.length carries the empty state, no directive needed', () => {
+  const root = mount(`<hg-each>
+    <p bind="items.length:unless">Nothing here yet</p>
+    <ul><template><li bind="."></li></template></ul>
+  </hg-each>`)
+  const el = root.firstElementChild
+  const empty = el.querySelector('p')
+  el.items = []
+  expect(empty.hasAttribute('hidden')).toBe(false)
+  el.items = ['salt']
+  expect(empty.hasAttribute('hidden')).toBe(true)
+  el.items = []
+  expect(empty.hasAttribute('hidden')).toBe(false)
 })
 
 test('items shared tag-wide replace the fallback at first paint, share applied before init included', () => {
