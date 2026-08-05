@@ -1,0 +1,7 @@
+#!/bin/bash
+#
+# Run the linters in check mode. The authority on style; CI runs it.
+
+set -euo pipefail
+
+npm run lint

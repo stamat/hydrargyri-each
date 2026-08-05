@@ -1,0 +1,75 @@
+# hydrargyri-each — agent notes
+
+`<hg-each>` clones its `<template>` child once per item of `items`, painting
+row binds through the hydrargyri grammar — names, never code. Read
+[CONTRIBUTING.md](CONTRIBUTING.md) first — it defines what belongs in this
+project and what a pull request needs.
+
+Stack: vanilla ES modules, no framework and no TypeScript. Jest with jsdom,
+built with [poops](https://github.com/stamat/poops). One peer dependency,
+[hydrargyri](https://github.com/stamat/hydrargyri) — and it must stay a peer: two hydrargyri
+copies keep two element registries and nesting scope breaks silently, which is
+also why `poops.json` marks hydrargyri `external` for `dist/`.
+
+## Commands
+
+```bash
+script/bootstrap # npm ci, from a fresh clone
+script/build     # compiles dist/
+script/test      # jest
+script/lint      # eslint (the authority; CI runs it)
+```
+
+## Layout
+
+- The library is one file, `src/scripts/hydrargyri-each.js`. Its test sits beside
+  it as `src/scripts/hydrargyri-each.test.js`.
+- `dist/` is committed; never edit it by hand.
+- The README is the manual — there is no docs site. A behaviour change lands
+  in the README section that covers it, same change.
+
+## Principles
+
+- **The template is the author's; the rows region is hg-each's.** The
+  template's element siblings get cleared and re-cloned on every paint —
+  nothing else in the markup is ever touched.
+- **Names, never code.** Row binds are parsed by hydrargyri's exported
+  `parseBinds` — imported, never copied, so the grammar cannot fork.
+- **Test-driven.** The test is the spec; write it first. Never weaken, skip,
+  or delete a test to make it pass.
+- **YAGNI, root cause, delete dead code** — as everywhere.
+
+## Boundaries
+
+- **Always:** run `script/lint` and `script/test` before calling work done;
+  pair every fix or feature with a test; add a changelog entry under
+  `## [Unreleased]`; keep the README section that covers a changed behaviour
+  in the same diff.
+- **Ask first:** the `items` contract, the rows-region rule, the `hg-row` /
+  `hgItem` names, the `hg-each` tag, anything `key` — public API all of it;
+  adding a dependency.
+- **Never:** edit `dist/` (generated); bump the version or publish — a tag
+  does that.
+
+## Non-obvious rules
+
+- **`package.json` is `private: true`.** Nothing publishes until that comes
+  off, and publish.yml fails on the first `v*` tag while it stays. Removing it
+  is a release decision, not a cleanup.
+- **`_paint` hands the region over on first data, not on init.** The declared
+  default `null` leaves the fallback rows standing; the gate is
+  `_painted || _assigned.has('items') || items !== null`, because
+  `_applyShared` erases the assigned mark right after writing — drop a clause
+  and either share() stops painting or the fallback dies at init.
+- **`_scanningBinds` is a flag, not a `_scope` override, on purpose.** The
+  instance bind scan must skip the rows region (row binds are item-relative
+  and would warn as unknown keys) while the handler scan must keep it (row
+  `on` routes through `_handle`). Both scans share `_scope`.
+- **Every `_paint` re-adds the command listener.** `_scanHandlers` tears down
+  all of `_listeners`, including the `command` listener hydrargyri wires outside
+  the scan in `_init` — without the re-add, Invoker Commands die on the first
+  repaint. The test named for it guards this.
+- **Row painting happens after insertion.** Scope is `closest()`: only the
+  attached tree can say a nested hydrargyri element owns its own binds.
+- **`bind="."` arrives from `parseBinds` as `['', '']`** — the one shape a
+  real path cannot take; `resolve()` special-cases it as the item itself.

@@ -1,0 +1,16 @@
+# Dependencies. package-lock.json is committed on purpose — script/bootstrap and
+# CI both run `npm ci`, which needs it and will not write one.
+node_modules/
+
+# Build output. dist/ is committed, because the CDN examples in the README serve
+# it straight off the repository.
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors and tools
+.vscode
+.history
+.idea
+.claude

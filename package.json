@@ -1,0 +1,59 @@
+{
+  "name": "hydrargyri-each",
+  "version": "1.0.0",
+  "private": true,
+  "description": "List rendering for hydrargyri — <hg-each> clones the <template> you wrote, one row per item, binding by names, never code",
+  "type": "module",
+  "main": "src/scripts/hydrargyri-each.js",
+  "exports": {
+    ".": "./src/scripts/hydrargyri-each.js",
+    "./dist/*": "./dist/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src/scripts/hydrargyri-each.js",
+    "dist/hydrargyri-each.mjs",
+    "dist/hydrargyri-each.mjs.map",
+    "dist/hydrargyri-each.min.mjs"
+  ],
+  "homepage": "https://github.com/stamat/hydrargyri-each",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/stamat/hydrargyri-each.git"
+  },
+  "keywords": [
+    "web-components",
+    "custom-elements",
+    "list-rendering",
+    "light-dom",
+    "hydrargyri"
+  ],
+  "author": "Nikola Stamatovic <@stamat>",
+  "contributors": [],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/stamat/hydrargyri-each/issues"
+  },
+  "scripts": {
+    "dev": "poops",
+    "build": "poops -b",
+    "prepack": "poops -b",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "lint": "eslint ."
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "transform": {}
+  },
+  "peerDependencies": {
+    "hydrargyri": ">=1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.0",
+    "jest": "^30.0.0",
+    "jest-environment-jsdom": "^30.0.0",
+    "poops": "^2.0.0",
+    "hydrargyri": "file:../salis"
+  }
+}

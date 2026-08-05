@@ -1,0 +1,21 @@
+{
+  "scripts": [{
+    "in": "src/scripts/hydrargyri-each.js",
+    "out": "dist/hydrargyri-each.mjs",
+    "options": {
+      "sourcemap": true,
+      "minify": true,
+      "justMinified": false,
+      "format": "esm",
+      "target": "es2019",
+      "external": ["hydrargyri"]
+    }
+  }],
+  "banner": "/* {{ name }} v{{ version }} | {{ homepage }} | {{ license }} License */",
+  "watch": [
+    "src"
+  ],
+  "includePaths": [
+    "node_modules"
+  ]
+}

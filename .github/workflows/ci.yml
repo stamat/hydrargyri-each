@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+# This workflow only reads the repository; say so, and the token can do no more.
+permissions:
+  contents: read
+
+# A new push to the same branch or pull request supersedes the run in flight.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      # The only language-specific step — everything below it calls script/*.
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: script/bootstrap
+
+      - name: Lint
+        run: script/lint
+
+      - name: Test
+        run: script/test
+
+      - name: Build
+        run: script/build
+
+      # The package ships dist/ — poops exits 0 when it has nothing to compile,
+      # so check the output rather than the exit code.
+      - name: Verify build output
+        shell: bash
+        run: |
+          test -s dist/hydrargyri-each.mjs
+          test -s dist/hydrargyri-each.min.mjs
