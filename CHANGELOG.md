@@ -11,6 +11,8 @@ for the person who wrote the code.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-08-05
+
 ### Fixed
 
 - **A keyed list no longer calls a `reactive()` splice a duplicate-key mistake.** Removing
