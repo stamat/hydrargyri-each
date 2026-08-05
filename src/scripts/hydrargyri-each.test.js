@@ -263,6 +263,18 @@ test('items shared tag-wide replace the fallback at first paint, share applied b
   expect(rows(el).map((li) => li.textContent)).toEqual(['salt'])
 })
 
+test('a shared null is still "no data" and the fallback stands — unlike an instance assignment of null', () => {
+  HgEach.share({ items: null })
+  const root = mount(`<hg-each><ul>
+    <template><li bind="."></li></template>
+    <li>fallback</li>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  expect(rows(el).map((li) => li.textContent)).toEqual(['fallback'])
+  el.items = null
+  expect(rows(el)).toEqual([])
+})
+
 test('a moved hg-each rescans and repaints on reconnect', () => {
   const root = mount(`<hg-each><ul><template><li bind="."></li></template></ul></hg-each>`)
   const el = root.firstElementChild
