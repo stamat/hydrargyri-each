@@ -202,6 +202,12 @@ reactive model keeps its own subscribers — so it costs one `reactive()` call
 per item and asks for no option here. Rows whose position shifts still repaint,
 because `$index` is part of what a row shows.
 
+Row listeners follow the same economy on a hydrargyri new enough to wire single
+nodes (`_wireHandlers`, on hydrargyri's `main` and in no release yet): a row's
+`on` wires once, when the row arrives, and a paint touches no standing row's
+listeners. With the published peer every paint falls back to rescanning them
+all — same behaviour, more work.
+
 ```html
 <hg-each key="id">
   <!-- a path into the item -->

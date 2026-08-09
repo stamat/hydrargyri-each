@@ -112,14 +112,16 @@ test('null clears the rows once the element has data, and an empty array paints 
   expect(rows(el)).toEqual([])
 })
 
-test('a reactive items model repaints on mutation — push grows a row, splice removes one', () => {
+test('a reactive items model repaints on mutation — push grows a row, splice removes one', async () => {
   const root = mount(`<hg-each><ul><template><li bind="."></li></template></ul></hg-each>`)
   const el = root.firstElementChild
   const items = reactive(['salt'])
   el.items = items
   items.push('stone')
+  await null
   expect(rows(el).map((li) => li.textContent)).toEqual(['salt', 'stone'])
   items.splice(0, 1)
+  await null
   expect(rows(el).map((li) => li.textContent)).toEqual(['stone'])
 })
 
@@ -160,7 +162,7 @@ test('hg-row stays the position over an object — the key lives in $key, never 
   expect(rows(el).map((li) => li.hgItem)).toEqual(['admin', 'member'])
 })
 
-test('a reactive object repaints on mutation, the same door an array has', () => {
+test('a reactive object repaints on mutation, the same door an array has', async () => {
   const root = mount(`<hg-each><ul>
     <template><li bind="$key"></li></template>
   </ul></hg-each>`)
@@ -168,8 +170,10 @@ test('a reactive object repaints on mutation, the same door an array has', () =>
   const items = reactive({ ada: 'admin' })
   el.items = items
   items.grace = 'member'
+  await null
   expect(rows(el).map((li) => li.textContent)).toEqual(['ada', 'grace'])
   delete items.ada
+  await null
   expect(rows(el).map((li) => li.textContent)).toEqual(['grace'])
 })
 
@@ -535,12 +539,14 @@ test('a splice through a reactive model says nothing — the duplicate a keyed p
   const items = reactive([{ id: 1, name: 'Ada' }, { id: 2, name: 'Grace' }, { id: 3, name: 'Hedy' }])
   el.items = items
   const grace = rows(el)[1]
-  // Every element the splice shifts down is one repaint, and each of those
-  // arrays holds the item it just copied in both its old slot and its new one.
+  // A core that notifies per shifted element paints intermediate arrays that
+  // hold an item in two slots; a batching core paints only the settled list.
+  // Either way the settled list is the author's, and no warning belongs to it.
   items.splice(0, 1)
+  await null
   expect(rows(el).map((li) => li.textContent)).toEqual(['Grace', 'Hedy'])
   expect(rows(el)[0]).toBe(grace)
-  await Promise.resolve()
+  await null
   expect(warn).not.toHaveBeenCalled()
 })
 
@@ -553,10 +559,14 @@ test('a key warning cancelled by one settled paint still fires for the next mist
   const items = reactive([{ id: 1, name: 'Ada' }, { id: 2, name: 'Grace' }])
   el.items = items
   items.splice(0, 1)
-  await Promise.resolve()
+  await null
+  await null
   expect(warn).not.toHaveBeenCalled()
   items.push({ id: 2, name: 'Hedy' })
-  await Promise.resolve()
+  // Two ticks: a batching core paints on the first and the held key warning
+  // prints on the second; a per-mutation core is already past both.
+  await null
+  await null
   expect(warn).toHaveBeenCalledWith(expect.stringContaining('duplicate'))
 })
 
@@ -677,6 +687,38 @@ test('replacing items unsubscribes the rows — a dropped item mutation repaints
   ada.name = 'ghost'
   await null
   expect(update).not.toHaveBeenCalled()
+})
+
+test('a standing row keeps a working listener across paints that add and remove other rows', async () => {
+  const root = mount(`<hg-each key="id"><ul>
+    <template><li><button on="click:pick" bind="name"></button></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  const seen = []
+  el.handlers.pick = (e) => seen.push(e.target.closest('[hg-row]').hgItem.name)
+  const items = reactive([reactive({ id: 1, name: 'Ada' })])
+  el.items = items
+  items.push(reactive({ id: 2, name: 'Grace' }))
+  await null
+  rows(el)[1].querySelector('button').click()
+  items.splice(1, 1)
+  await null
+  rows(el)[0].querySelector('button').click()
+  expect(seen).toEqual(['Grace', 'Ada'])
+})
+
+test('no listener stays behind for a row that left', async () => {
+  const root = mount(`<hg-each key="id"><ul>
+    <template><li><button on="click:pick"></button></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  el.handlers.pick = () => {}
+  const items = reactive([reactive({ id: 1 }), reactive({ id: 2 })])
+  el.items = items
+  items.splice(1, 1)
+  await null
+  const stray = el._listeners.filter(({ el: target }) => target instanceof Element && target !== el && !el.contains(target))
+  expect(stray).toEqual([])
 })
 
 test('a moved hg-each rescans and repaints on reconnect', () => {

@@ -11,6 +11,7 @@ export default [
       globals: {
         document: 'readonly',
         console: 'readonly',
+        Element: 'readonly',
         HTMLElement: 'readonly',
         customElements: 'readonly',
         queueMicrotask: 'readonly',
@@ -33,6 +34,7 @@ export default [
         beforeEach: 'readonly',
         document: 'readonly',
         customElements: 'readonly',
+        Element: 'readonly',
         HTMLElement: 'readonly',
         Event: 'readonly',
         CustomEvent: 'readonly'

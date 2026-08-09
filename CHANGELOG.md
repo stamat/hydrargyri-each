@@ -11,6 +11,18 @@ for the person who wrote the code.
 
 ## [Unreleased]
 
+### Changed
+
+- **Row listeners wire once, when the row arrives — no more full rescan per paint.**
+  Every paint tore down every listener the element held and rescanned the whole
+  subtree to wire them back, rows that had not moved included. On a hydrargyri with
+  `_wireHandlers` (its `main`, no release yet), a paint now wires only the fresh
+  rows and prunes the listeners whose nodes left with last paint's — standing rows
+  keep the listeners they already have. On the published peer the full rescan
+  remains, detected at paint time: same behaviour, more work. The suite runs
+  against the sibling `../hydrargyri` checkout when one is present and the
+  published peer otherwise, so both paths stay covered.
+
 ### Added
 
 - **Per-row repaint for items that are their own `reactive()` models.** Every paint of

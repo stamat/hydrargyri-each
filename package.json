@@ -40,10 +40,6 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "lint": "eslint ."
   },
-  "jest": {
-    "testEnvironment": "jsdom",
-    "transform": {}
-  },
   "peerDependencies": {
     "hydrargyri": ">=1"
   },

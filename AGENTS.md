@@ -76,10 +76,19 @@ script/lint      # eslint (the authority; CI runs it)
   instance bind scan must skip the rows region (row binds are item-relative
   and would warn as unknown keys) while the handler scan must keep it (row
   `on` routes through `_handle`). Both scans share `_scope`.
-- **Every `_paint` re-adds the command listener.** `_scanHandlers` tears down
-  all of `_listeners`, including the `command` listener hydrargyri wires outside
-  the scan in `_init` — without the re-add, Invoker Commands die on the first
-  repaint. The test named for it guards this.
+- **Row `on` wires incrementally when the core allows it.** With a hydrargyri
+  that has `_wireHandlers`, `_wireRows` prunes listeners whose node left and
+  wires only fresh rows — standing rows keep the listeners they have. Without
+  it (the published peer), the fallback is the old full rescan, and *that*
+  path must re-add the `command` listener, because `_scanHandlers` tears down
+  all of `_listeners` including the one `_init` wired outside the scan —
+  without the re-add, Invoker Commands die on the first repaint.
+- **The suite runs against the sibling `../hydrargyri` checkout when present**
+  (see `jest.config.js`) — the incremental path needs the unreleased core. CI
+  has no sibling, so it exercises the published peer and the fallback path;
+  the two environments cover both. A test asserting timing must pass under
+  both a per-mutation core and a batching one — `await null` after mutating,
+  never a sync assert.
 - **Row painting happens after insertion.** Scope is `closest()`: only the
   attached tree can say a nested hydrargyri element owns its own binds.
 - **`bind="."` arrives from `parseBinds` as `['', '']`** — the one shape a

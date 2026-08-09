@@ -255,7 +255,7 @@ export default class HgEach extends HgElement {
         root.hgItem = row.item
         if (claimable) root.hgKey = key
       }
-      rows.push({ ...row, roots, skip })
+      rows.push({ ...row, roots, skip, fresh: !reused })
     }
     if (keysHeld) this._pendingKey = null
     // Walk the region against the rows it should hold: a node already in place
@@ -280,12 +280,36 @@ export default class HgEach extends HgElement {
       if (row.skip) continue
       for (const root of row.roots) this._paintRow(root, row)
     }
-    // The rescan wires `on` in the fresh rows — and tears down the command
-    // listener _init wired outside the scan, so it comes back here.
-    this._scanHandlers()
-    const listener = (e) => this._act(e)
-    this.addEventListener('command', listener)
-    this._listeners.push({ el: this, event: 'command', listener })
+    this._wireRows(rows)
+  }
+
+  // Fresh rows wire alone and standing rows keep the listeners they already
+  // have; the prune drops listeners whose node left with last paint's rows —
+  // window/document targets and hg-each's own survive it. A core without
+  // _wireHandlers gets the published-peer behaviour: full rescan every paint.
+  _wireRows(rows) {
+    if (typeof this._wireHandlers !== 'function') {
+      // The rescan wires `on` in the fresh rows — and tears down the command
+      // listener _init wired outside the scan, so it comes back here.
+      this._scanHandlers()
+      const listener = (e) => this._act(e)
+      this.addEventListener('command', listener)
+      this._listeners.push({ el: this, event: 'command', listener })
+      return
+    }
+    this._listeners = this._listeners.filter(({ el, event, listener }) => {
+      if (!(el instanceof Element) || el === this || this.contains(el)) return true
+      el.removeEventListener(event, listener)
+      return false
+    })
+    for (const row of rows) {
+      if (!row.fresh) continue
+      for (const root of row.roots) {
+        for (const node of [root, ...root.querySelectorAll('[on],[data-on]')]) {
+          if (super._scope(node)) this._wireHandlers(node)
+        }
+      }
+    }
   }
 
   // The keys are read back off the row roots rather than kept in a field: a row
