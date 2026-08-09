@@ -11,6 +11,8 @@ for the person who wrote the code.
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-08-09
+
 ### Added
 
 - **Per-row repaint for items that are their own `reactive()` models.** Every paint of
