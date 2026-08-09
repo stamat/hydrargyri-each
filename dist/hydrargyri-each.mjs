@@ -1,4 +1,4 @@
-/* hydrargyri-each v1.0.1 | https://github.com/stamat/hydrargyri-each | MIT License */
+/* hydrargyri-each v2.0.0 | https://github.com/stamat/hydrargyri-each | MIT License */
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
@@ -26,7 +26,6 @@ var HgEach = class extends HgElement {
     this._template = null;
     this._painted = false;
     this._scanningBinds = false;
-    this._pendingKey = null;
   }
   _init() {
     if (this.hasAttribute("template")) {
@@ -103,8 +102,22 @@ var HgEach = class extends HgElement {
     return !!node && node !== this._template;
   }
   update(key) {
+    if (typeof key === "string" && key.startsWith("$row:")) return this._paintRowAt(+key.slice(5));
     super.update(key);
     if (this._initialized && (!key || key === "items")) this._paint();
+  }
+  // The row is found by the hg-row it wears and painted from the coordinates
+  // it carries, so the other rows keep whatever the DOM holds for them. Roots
+  // are looked up at call time, never remembered: a paint may have re-cloned
+  // the row since the subscription was made.
+  _paintRowAt(index) {
+    const parent = this._regionParent();
+    if (!parent) return;
+    const at = String(index);
+    for (const root of parent.children) {
+      if (root === this._template || root.getAttribute("hg-row") !== at) continue;
+      this._paintRow(root, { item: root.hgItem, index, key: root.hgKey });
+    }
   }
   _paint() {
     if (!this._painted && !this._assigned.has("items") && this.items === null) return;
@@ -123,6 +136,11 @@ var HgEach = class extends HgElement {
     }
     this._painted = true;
     const parent = this._regionParent();
+    this._subscriptions = this._subscriptions.filter((sub) => {
+      if (!sub.key.startsWith("$row:")) return true;
+      sub.subs.delete(sub.fn);
+      return false;
+    });
     const inline = this._template.parentNode === parent;
     if (inline) while (parent.firstChild && parent.firstChild !== this._template) parent.firstChild.remove();
     for (const child of [...parent.childNodes]) {
@@ -131,28 +149,29 @@ var HgEach = class extends HgElement {
     const previous = this._keyedRows(parent);
     const claimed = /* @__PURE__ */ new Set();
     const rows = [];
-    let keysHeld = true;
     for (const row of entries) {
       const key = previous ? resolve(row, previous.path) : void 0;
       const claimable = previous !== null && key !== void 0 && !claimed.has(key);
       if (previous && key === void 0) {
-        keysHeld = false;
         this._warnKey(`hydrargyri-each: <hg-each key="${previous.raw}"> found no key on an item \u2014 its rows are re-cloned until the path resolves`);
       } else if (previous && !claimable) {
-        keysHeld = false;
         this._warnKey(`hydrargyri-each: <hg-each key="${previous.raw}"> has a duplicate key ${JSON.stringify(key)} \u2014 one row's nodes cannot serve two, so the later row is cloned fresh`);
       }
       let roots = claimable ? previous.rows.get(key) || null : null;
       if (claimable) claimed.add(key);
+      const reused = !!roots;
       if (!roots) roots = [...document.importNode(this._template.content, true).children];
+      const count = this._subscriptions.length;
+      this._subscribe("$row:" + row.index, row.item);
+      const kept = reused && roots[0].hgItem === row.item && roots[0].getAttribute("hg-row") === String(row.index);
+      const skip = kept && (this._subscriptions.length > count || row.item === null || typeof row.item !== "object");
       for (const root of roots) {
         root.setAttribute("hg-row", row.index);
         root.hgItem = row.item;
         if (claimable) root.hgKey = key;
       }
-      rows.push({ ...row, roots });
+      rows.push({ ...row, roots, skip, fresh: !reused });
     }
-    if (keysHeld) this._pendingKey = null;
     let cursor = inline ? this._template.nextSibling : parent.firstChild;
     for (const row of rows) {
       for (const root of row.roots) {
@@ -166,12 +185,28 @@ var HgEach = class extends HgElement {
       cursor = next;
     }
     for (const row of rows) {
+      if (row.skip) continue;
       for (const root of row.roots) this._paintRow(root, row);
     }
-    this._scanHandlers();
-    const listener = (e) => this._act(e);
-    this.addEventListener("command", listener);
-    this._listeners.push({ el: this, event: "command", listener });
+    this._wireRows(rows);
+  }
+  // Fresh rows wire alone and standing rows keep the listeners they already
+  // have; the prune drops listeners whose node left with last paint's rows —
+  // window/document targets and hg-each's own survive it.
+  _wireRows(rows) {
+    this._listeners = this._listeners.filter(({ el, event, listener }) => {
+      if (!(el instanceof Element) || el === this || this.contains(el)) return true;
+      el.removeEventListener(event, listener);
+      return false;
+    });
+    for (const row of rows) {
+      if (!row.fresh) continue;
+      for (const root of row.roots) {
+        for (const node of [root, ...root.querySelectorAll("[on],[data-on]")]) {
+          if (super._scope(node)) this._wireHandlers(node);
+        }
+      }
+    }
   }
   // The keys are read back off the row roots rather than kept in a field: a row
   // the page removed takes its entry with it, so there is no map to go stale,
@@ -190,23 +225,13 @@ var HgEach = class extends HgElement {
   }
   // Once per element: a keying mistake is the same mistake on every repaint,
   // and a list that repaints on every keystroke would say so on every keystroke.
-  //
-  // Held to the end of the task rather than said at the paint that saw it: a
-  // reactive() splice notifies once per element it shifts, and each of those
-  // intermediate arrays holds the item it just copied in two slots — a
-  // duplicate key the author never wrote. The paint that settles clears the
-  // pending message, so only a key problem still standing when the mutation
-  // finishes is ever printed.
+  // Said at the paint that saw it — the peer coalesces a reactive() mutation
+  // into one repaint of the settled list, so no paint ever walks an
+  // intermediate array holding an item in two slots.
   _warnKey(message) {
-    if (this._warnedKey || this._pendingKey) return;
-    this._pendingKey = message;
-    queueMicrotask(() => {
-      const pending = this._pendingKey;
-      this._pendingKey = null;
-      if (!pending || this._warnedKey) return;
-      this._warnedKey = true;
-      console.warn(pending);
-    });
+    if (this._warnedKey) return;
+    this._warnedKey = true;
+    console.warn(message);
   }
   _paintRow(root, row) {
     const nodes = [root, ...root.querySelectorAll("[bind],[data-bind]")];
