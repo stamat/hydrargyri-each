@@ -60,8 +60,8 @@ nodes, and a list the user is typing into survives its own repaints.
 
 ## Install
 
-Needs [hydrargyri](https://github.com/stamat/hydrargyri) 2 or newer as a peer — the row
-wiring and the key warnings both rest on what 2.0 added.
+Needs [hydrargyri](https://github.com/stamat/hydrargyri) 2.0.0 or newer as a peer — the
+row wiring and the key warnings both rest on what that release added.
 
 ```bash
 npm install hydrargyri hydrargyri-each

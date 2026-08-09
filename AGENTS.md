@@ -7,7 +7,7 @@ project and what a pull request needs.
 
 Stack: vanilla ES modules, no framework and no TypeScript. Jest with jsdom,
 built with [poops](https://github.com/stamat/poops). One peer dependency,
-[hydrargyri](https://github.com/stamat/hydrargyri) 2 or newer — and it must stay a peer: two hydrargyri
+[hydrargyri](https://github.com/stamat/hydrargyri), 2.0.0 or newer — and it must stay a peer: two hydrargyri
 copies keep two element registries and nesting scope breaks silently, which is
 also why `poops.json` marks hydrargyri `external` for `dist/`.
 

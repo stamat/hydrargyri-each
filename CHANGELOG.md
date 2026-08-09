@@ -28,14 +28,14 @@ for the person who wrote the code.
 
 ### Changed
 
-- **The peer is now hydrargyri 2 or newer, and a 1.x peer no longer works.** Upgrade
-  both together — `npm install hydrargyri@2 hydrargyri-each@2` — and from a CDN point
-  the import map at hydrargyri 2, because one copy of the core still has to serve both.
-  What forced it is below: the row wiring calls `_wireHandlers`, which 2.0 is the first
-  release to have, and the key warnings now trust 2.0's batching to hand them a settled
-  list. Nothing in the markup contract moved: `items`, `key`, `template`, `hg-row`,
-  `hgItem` and the fallthrough rules are what they were, so a page already on
-  hydrargyri 2 upgrades by version number alone.
+- **The peer floor is now hydrargyri 2.0.0, and a 1.x core no longer works.** Upgrade the
+  pair together — `npm install hydrargyri@2 hydrargyri-each@2` — and from a CDN move the
+  import map to the 2.x build, since the whole page shares that one copy. What forced it
+  is below: the row wiring calls `_wireHandlers`, which 2.0.0 is the first release to
+  have, and the key warnings now trust its batching to hand them a settled list. Nothing
+  in the markup contract moved — `items`, `key`, `template`, `hg-row`, `hgItem` and the
+  fallthrough rules are what they were — so a page whose core is already 2.x upgrades by
+  version number alone.
 
 - **Row listeners wire once, when the row arrives — no more full rescan per paint.**
   Every paint tore down every listener the element held and rescanned the whole subtree
@@ -48,7 +48,7 @@ for the person who wrote the code.
 - **A key warning is said at the paint that saw it again, not at the end of the task.**
   1.0.1 held both key messages back because a `reactive()` splice repainted once per
   element it shifted, and each of those intermediate arrays held an item in two slots —
-  a duplicate the author never wrote. hydrargyri 2 folds that whole burst into one
+  a duplicate the author never wrote. The 2.x core folds that whole burst into one
   repaint of the settled list, so there is no intermediate array left to misread and
   nothing to defer past: the warnings are synchronous, and the paint that cancels a
   pending one is gone with the field that held it. What changes for a test: after an
