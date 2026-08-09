@@ -84,3 +84,9 @@ script/lint      # eslint (the authority; CI runs it)
   attached tree can say a nested hydrargyri element owns its own binds.
 - **`bind="."` arrives from `parseBinds` as `['', '']`** — the one shape a
   real path cannot take; `resolve()` special-cases it as the item itself.
+- **Row subscriptions are rebuilt on every `_paint`, keyed `$row:<index>`.**
+  The sweep at the top of `_paint` drops them before the loop re-subscribes
+  what stands — remove it and a replaced `items` leaves vanished rows' models
+  repainting the element forever. The skip that spares an unchanged row is
+  legal only for a reactive or primitive item; a plain object's row must
+  repaint every paint, or mutation through the list's proxy goes stale.

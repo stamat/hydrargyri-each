@@ -11,6 +11,21 @@ for the person who wrote the code.
 
 ## [Unreleased]
 
+### Added
+
+- **Per-row repaint for items that are their own `reactive()` models.** Every paint of
+  the list repainted every row's binds, however little had changed — a push rewrote the
+  rows already standing, and a mutation inside one item rewrote all of them (or, for an
+  item that was its own reactive model, none: its notifications had no subscriber and
+  went nowhere). hg-each now subscribes each row to its item when the item is a
+  `reactive()` model of its own: `item.name = '…'` repaints that one row alone, and a
+  keyed paint skips the standing rows whose item and position are unchanged — a push
+  touches the new row, a pop the leaving one. Primitives get the same skip, since an
+  unchanged value in an unchanged place has nothing new to paint. Plain-object items keep
+  the full repaint on purpose: they cannot report their own mutations, so skipping them
+  would let `list[0].name = '…'` through the list's proxy go stale. Rows whose position
+  shifts still repaint — `$index` is part of what a row shows.
+
 ## [1.0.1] - 2026-08-05
 
 ### Fixed

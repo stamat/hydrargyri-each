@@ -150,8 +150,25 @@ export default class HgEach extends HgElement {
   }
 
   update(key) {
+    // A `$row:i` key arrives from a row's own subscription — one reactive
+    // item's mutation — and repaints that row alone, never the region.
+    if (typeof key === 'string' && key.startsWith('$row:')) return this._paintRowAt(+key.slice(5))
     super.update(key)
     if (this._initialized && (!key || key === 'items')) this._paint()
+  }
+
+  // The row is found by the hg-row it wears and painted from the coordinates
+  // it carries, so the other rows keep whatever the DOM holds for them. Roots
+  // are looked up at call time, never remembered: a paint may have re-cloned
+  // the row since the subscription was made.
+  _paintRowAt(index) {
+    const parent = this._regionParent()
+    if (!parent) return
+    const at = String(index)
+    for (const root of parent.children) {
+      if (root === this._template || root.getAttribute('hg-row') !== at) continue
+      this._paintRow(root, { item: root.hgItem, index, key: root.hgKey })
+    }
   }
 
   _paint() {
@@ -180,6 +197,14 @@ export default class HgEach extends HgElement {
     }
     this._painted = true
     const parent = this._regionParent()
+    // Row subscriptions are rebuilt with the rows: whatever the last paint
+    // subscribed drops here and the loop below re-subscribes what stands, so
+    // a replaced items value cannot leave a vanished row's model repainting it.
+    this._subscriptions = this._subscriptions.filter((sub) => {
+      if (!sub.key.startsWith('$row:')) return true
+      sub.subs.delete(sub.fn)
+      return false
+    })
     const inline = this._template.parentNode === parent
     // An inline template divides the region: rows are always written after it,
     // so anything before it is last paint's and goes now.
@@ -211,13 +236,26 @@ export default class HgEach extends HgElement {
       }
       let roots = claimable ? previous.rows.get(key) || null : null
       if (claimable) claimed.add(key)
+      const reused = !!roots
       if (!roots) roots = [...document.importNode(this._template.content, true).children]
+      // An item that is its own reactive() model gets its row subscribed to
+      // it — the subscription only sticks for one, which is also the tell.
+      const count = this._subscriptions.length
+      this._subscribe('$row:' + row.index, row.item)
+      // A reused row whose item and place are unchanged skips its repaint —
+      // but only when mutation inside the item cannot go unseen: a reactive
+      // item reports its own, a primitive has no inside. A plain object only
+      // ever reaches this paint through the list's notify, so its row
+      // repaints every time. Judged before the stamping below overwrites the
+      // evidence.
+      const kept = reused && roots[0].hgItem === row.item && roots[0].getAttribute('hg-row') === String(row.index)
+      const skip = kept && (this._subscriptions.length > count || row.item === null || typeof row.item !== 'object')
       for (const root of roots) {
         root.setAttribute('hg-row', row.index)
         root.hgItem = row.item
         if (claimable) root.hgKey = key
       }
-      rows.push({ ...row, roots })
+      rows.push({ ...row, roots, skip })
     }
     if (keysHeld) this._pendingKey = null
     // Walk the region against the rows it should hold: a node already in place
@@ -239,6 +277,7 @@ export default class HgEach extends HgElement {
     // Painted after insertion, not before: scope is closest(), and only the
     // attached tree can say a nested hydrargyri element owns its own binds.
     for (const row of rows) {
+      if (row.skip) continue
       for (const root of row.roots) this._paintRow(root, row)
     }
     // The rescan wires `on` in the fresh rows — and tears down the command

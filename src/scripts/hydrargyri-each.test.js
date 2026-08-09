@@ -3,7 +3,10 @@
 // `$index` / `$key` coordinates, arrays and plain objects, `template="id"` and
 // the region it widens, keyed reuse — nodes kept, moved, dropped, the
 // duplicate and missing-key fallbacks, and the key warning waiting for the
-// model to settle so a splice is not reported as a mistake — reactive repaint, handler and condition
+// model to settle so a splice is not reported as a mistake — per-row repaint:
+// an item that is its own reactive() model repaints only its row, standing
+// rows with an unchanged reactive or primitive item are skipped, and plain
+// items keep the full repaint their mutations depend on — handler and condition
 // fallthrough to the closest hydrargyri ancestor, scope around nested hydrargyri
 // elements, hg-each's own instance binds, share, reconnect, and the command
 // listener surviving a repaint.
@@ -579,6 +582,101 @@ test('keyed reuse holds over an external template, where the region is hg-each i
   el.items = [{ id: 2, name: 'Grace' }, { id: 1, name: 'Ada' }]
   expect([...el.children]).toEqual([grace, ada])
   expect([...el.children].map((node) => node.getAttribute('hg-row'))).toEqual(['0', '1'])
+})
+
+test('adding an item repaints only the new row — the standing rows keep their paint', async () => {
+  const root = mount(`<hg-each key="id"><ul>
+    <template><li bind="name"></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  const items = reactive([reactive({ id: 1, name: 'Ada' })])
+  el.items = items
+  const ada = rows(el)[0]
+  ada.textContent = 'poked' // an out-of-band mark any repaint would erase
+  items.push(reactive({ id: 2, name: 'Grace' }))
+  await null
+  expect(rows(el).map((li) => li.textContent)).toEqual(['poked', 'Grace'])
+  expect(rows(el)[0]).toBe(ada)
+})
+
+test('removing the last item takes its row and repaints no other', async () => {
+  const root = mount(`<hg-each key="id"><ul>
+    <template><li bind="name"></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  const items = reactive([reactive({ id: 1, name: 'Ada' }), reactive({ id: 2, name: 'Grace' })])
+  el.items = items
+  const ada = rows(el)[0]
+  ada.textContent = 'poked'
+  items.splice(1, 1)
+  await null
+  expect(rows(el)).toEqual([ada])
+  expect(ada.textContent).toBe('poked')
+})
+
+test('mutating one reactive item repaints its row alone', async () => {
+  const root = mount(`<hg-each key="id"><ul>
+    <template><li bind="name"></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  const ada = reactive({ id: 1, name: 'Ada' })
+  el.items = [ada, reactive({ id: 2, name: 'Grace' })]
+  const [adaRow, graceRow] = rows(el)
+  graceRow.textContent = 'poked'
+  ada.name = 'Ada Lovelace'
+  await null
+  expect(adaRow.textContent).toBe('Ada Lovelace')
+  expect(graceRow.textContent).toBe('poked')
+})
+
+test('a reactive item repaints its row without a key attribute too', async () => {
+  const root = mount(`<hg-each><ul><template><li bind="name"></li></template></ul></hg-each>`)
+  const el = root.firstElementChild
+  const ada = reactive({ name: 'Ada' })
+  el.items = [ada]
+  ada.name = 'Ada Lovelace'
+  await null
+  expect(rows(el)[0].textContent).toBe('Ada Lovelace')
+})
+
+test('a plain item repaints with the list — mutation through the array proxy cannot go stale', async () => {
+  const root = mount(`<hg-each key="id"><ul>
+    <template><li bind="name"></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  const items = reactive([{ id: 1, name: 'Ada' }])
+  el.items = items
+  items[0].name = 'Ada Lovelace'
+  await null
+  expect(rows(el)[0].textContent).toBe('Ada Lovelace')
+})
+
+test('a primitive row in an unchanged place is not repainted — its value is all it is', async () => {
+  const root = mount(`<hg-each key="."><ul>
+    <template><li bind="."></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  el.items = ['salt', 'stone']
+  const [salt, stone] = rows(el)
+  salt.textContent = 'poked'
+  stone.textContent = 'poked too'
+  el.items = ['salt', 'stone', 'sulphur']
+  await null
+  expect(rows(el).map((li) => li.textContent)).toEqual(['poked', 'poked too', 'sulphur'])
+})
+
+test('replacing items unsubscribes the rows — a dropped item mutation repaints nothing', async () => {
+  const root = mount(`<hg-each key="id"><ul>
+    <template><li bind="name"></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  const ada = reactive({ id: 1, name: 'Ada' })
+  el.items = [ada]
+  el.items = [{ id: 2, name: 'Grace' }]
+  const update = jest.spyOn(el, 'update')
+  ada.name = 'ghost'
+  await null
+  expect(update).not.toHaveBeenCalled()
 })
 
 test('a moved hg-each rescans and repaints on reconnect', () => {

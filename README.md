@@ -185,7 +185,22 @@ every repaint clones from scratch, which is fine for a list nobody is touching
 and wrong for one holding focus, a half-typed input or a playing video. With
 it, a row whose key comes back keeps the nodes it already had: they are moved
 into the new order and repainted in place, new keys arrive as clones, and
-vanished keys take their rows with them.
+vanished keys take their rows with them. Repainted in place has one exception,
+earned by the item: a kept row whose item and position are unchanged is not
+repainted at all when the item is a primitive — its value is all it is — or a
+`reactive()` model of its own, which reports its mutations itself (next
+paragraph). A plain object cannot report anything, so its row repaints with
+every paint of the list; that is what keeps a mutation made through the list's
+proxy from going stale.
+
+**An item that is its own `reactive()` model repaints its row alone.** Make
+the items reactive — `reactive([reactive({ … }), …])`, or each one before it
+is pushed — and hg-each subscribes every row to its item: `item.name = '…'`
+repaints that one row, and a push or a pop touches only the row it adds or
+removes. This is hydrargyri's own composition rule doing the work — a nested
+reactive model keeps its own subscribers — so it costs one `reactive()` call
+per item and asks for no option here. Rows whose position shifts still repaint,
+because `$index` is part of what a row shows.
 
 ```html
 <hg-each key="id">
