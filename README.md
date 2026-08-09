@@ -60,6 +60,9 @@ nodes, and a list the user is typing into survives its own repaints.
 
 ## Install
 
+Needs [hydrargyri](https://github.com/stamat/hydrargyri) 2 or newer as a peer — the row
+wiring and the key warnings both rest on what 2.0 added.
+
 ```bash
 npm install hydrargyri hydrargyri-each
 ```
@@ -96,7 +99,10 @@ nothing, because guessing what an entry means there is how a list quietly
 paints the wrong thing. Assign a
 [`reactive()`](https://stamat.github.io/hydrargyri/docs/api.html#reactivemodel)
 array or object and mutation repaints — `items.push(...)` grows a row, no
-second call.
+second call. hydrargyri folds a synchronous burst of mutations into one repaint
+at microtask time, so code reading the rows straight after a `push` or a
+`splice` awaits a microtask first (`await null` is enough); assigning `items`
+paints on the spot, as before.
 
 **The template's siblings are the rows region.** Everything beside the
 `<template>` inside its parent — elements, text and comments alike — is
@@ -202,11 +208,9 @@ reactive model keeps its own subscribers — so it costs one `reactive()` call
 per item and asks for no option here. Rows whose position shifts still repaint,
 because `$index` is part of what a row shows.
 
-Row listeners follow the same economy on a hydrargyri new enough to wire single
-nodes (`_wireHandlers`, on hydrargyri's `main` and in no release yet): a row's
-`on` wires once, when the row arrives, and a paint touches no standing row's
-listeners. With the published peer every paint falls back to rescanning them
-all — same behaviour, more work.
+Row listeners follow the same economy: a row's `on` wires once, when the row
+arrives, and a paint touches no standing row's listeners — only the ones whose
+node left with last paint's rows are dropped.
 
 ```html
 <hg-each key="id">
@@ -224,13 +228,12 @@ The path is the same grammar the binds use, resolved against the item, so
 `key="user.id"` walks. Two rows claiming one key warns and the later one is
 cloned fresh — one row's nodes cannot serve two — and a path that resolves to
 nothing warns and falls back to re-cloning, both once per element rather than
-once per repaint. Either message waits for the end of the task before it
-prints, because a `reactive()` mutation is not one repaint: `splice` notifies
-once per element it shifts, and each of those intermediate arrays holds the
-item it just copied in two slots. Those are duplicates nobody wrote, so the
-paint that settles cancels the message they queued — what is still wrong when
-the mutation finishes is what you hear about. `hg-row` keeps following the
-position, so a handler reading it after a reorder reads where the row is now.
+once per repaint. A `reactive()` mutation cannot provoke either by accident:
+hydrargyri folds a whole burst of them into one repaint of the settled list, so
+no paint ever walks an intermediate array holding an item in two slots — a
+`splice` reorders in silence, and what you hear about is a key you wrote twice.
+`hg-row` keeps following the position, so a handler reading it after a reorder
+reads where the row is now.
 
 **`on` and `#conditions` in rows fall through to the closest hydrargyri ancestor.**
 hg-each defines no handlers of its own, and the element that owns the data
@@ -251,9 +254,11 @@ way. No ancestor answering warns, as in hydrargyri.
   belongs to that element, so a bind written on an inner `<hg-each>` resolves
   against the inner element's state, never the outer row's item. A nested list
   is handed its data in JS, through the row's `hgItem`. (An ordinary custom
-  element in a row is a different case: hydrargyri's `prop#name` bind hands it
-  the value itself, and that type is on hydrargyri's `main`, not in any release
-  yet — with the peer at 1.0.0 there is no property bind here at all.)
+  element in a row is a different case: it is not a hydrargyri element, so its
+  root bind is hg-each's to paint, and hydrargyri's `prop#name` hands it the
+  value itself — `<my-chart bind="quarters:prop#series">` in a row carries the
+  array across with no JS. Only a hydrargyri element's own root is out of
+  reach, an inner `<hg-each>` included.)
 - **Sanitizing.** `:html` in a row is `innerHTML`, verbatim, same threat model
   as hydrargyri: bind your own state, never user input. `text` and `attr` stay
   inert — there is a test proving markup through a text bind cannot become

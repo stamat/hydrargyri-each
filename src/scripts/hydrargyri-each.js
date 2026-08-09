@@ -61,7 +61,6 @@ export default class HgEach extends HgElement {
     this._template = null
     this._painted = false
     this._scanningBinds = false
-    this._pendingKey = null
   }
 
   _init() {
@@ -189,8 +188,8 @@ export default class HgEach extends HgElement {
     }
     const entries = []
     if (Array.isArray(items)) {
-      // forEach, not map: a reactive() splice repaints mid-operation, when the
-      // array still holds a hole, and forEach skips holes where map keeps them.
+      // forEach, not map: a hole in a sparse array is not an item, and forEach
+      // skips holes where map keeps them as undefined rows.
       items.forEach((item, index) => entries.push({ item, index, key: undefined }))
     } else if (items) {
       Object.entries(items).forEach(([key, item], index) => entries.push({ item, index, key }))
@@ -218,9 +217,6 @@ export default class HgEach extends HgElement {
     const previous = this._keyedRows(parent)
     const claimed = new Set()
     const rows = []
-    // Cleared below when it survives the loop, which is what cancels a warning
-    // an unsettled model queued — an unkeyed paint holds every key it has.
-    let keysHeld = true
     for (const row of entries) {
       const key = previous ? resolve(row, previous.path) : undefined
       // A key claimed twice, or one that resolves to nothing, identifies no row
@@ -228,10 +224,8 @@ export default class HgEach extends HgElement {
       // because a key naming two rows would hand one row's nodes to both.
       const claimable = previous !== null && key !== undefined && !claimed.has(key)
       if (previous && key === undefined) {
-        keysHeld = false
         this._warnKey(`hydrargyri-each: <hg-each key="${previous.raw}"> found no key on an item — its rows are re-cloned until the path resolves`)
       } else if (previous && !claimable) {
-        keysHeld = false
         this._warnKey(`hydrargyri-each: <hg-each key="${previous.raw}"> has a duplicate key ${JSON.stringify(key)} — one row's nodes cannot serve two, so the later row is cloned fresh`)
       }
       let roots = claimable ? previous.rows.get(key) || null : null
@@ -257,7 +251,6 @@ export default class HgEach extends HgElement {
       }
       rows.push({ ...row, roots, skip, fresh: !reused })
     }
-    if (keysHeld) this._pendingKey = null
     // Walk the region against the rows it should hold: a node already in place
     // is stepped over, one that belongs earlier is moved, and whatever the walk
     // never reaches is last paint's and removed. Reused nodes that do not move
@@ -285,18 +278,8 @@ export default class HgEach extends HgElement {
 
   // Fresh rows wire alone and standing rows keep the listeners they already
   // have; the prune drops listeners whose node left with last paint's rows —
-  // window/document targets and hg-each's own survive it. A core without
-  // _wireHandlers gets the published-peer behaviour: full rescan every paint.
+  // window/document targets and hg-each's own survive it.
   _wireRows(rows) {
-    if (typeof this._wireHandlers !== 'function') {
-      // The rescan wires `on` in the fresh rows — and tears down the command
-      // listener _init wired outside the scan, so it comes back here.
-      this._scanHandlers()
-      const listener = (e) => this._act(e)
-      this.addEventListener('command', listener)
-      this._listeners.push({ el: this, event: 'command', listener })
-      return
-    }
     this._listeners = this._listeners.filter(({ el, event, listener }) => {
       if (!(el instanceof Element) || el === this || this.contains(el)) return true
       el.removeEventListener(event, listener)
@@ -332,23 +315,13 @@ export default class HgEach extends HgElement {
 
   // Once per element: a keying mistake is the same mistake on every repaint,
   // and a list that repaints on every keystroke would say so on every keystroke.
-  //
-  // Held to the end of the task rather than said at the paint that saw it: a
-  // reactive() splice notifies once per element it shifts, and each of those
-  // intermediate arrays holds the item it just copied in two slots — a
-  // duplicate key the author never wrote. The paint that settles clears the
-  // pending message, so only a key problem still standing when the mutation
-  // finishes is ever printed.
+  // Said at the paint that saw it — the peer coalesces a reactive() mutation
+  // into one repaint of the settled list, so no paint ever walks an
+  // intermediate array holding an item in two slots.
   _warnKey(message) {
-    if (this._warnedKey || this._pendingKey) return
-    this._pendingKey = message
-    queueMicrotask(() => {
-      const pending = this._pendingKey
-      this._pendingKey = null
-      if (!pending || this._warnedKey) return
-      this._warnedKey = true
-      console.warn(pending)
-    })
+    if (this._warnedKey) return
+    this._warnedKey = true
+    console.warn(message)
   }
 
   _paintRow(root, row) {

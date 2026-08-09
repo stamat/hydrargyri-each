@@ -2,8 +2,8 @@
 // data, repainted after), item-relative bind painting including `.` and the
 // `$index` / `$key` coordinates, arrays and plain objects, `template="id"` and
 // the region it widens, keyed reuse — nodes kept, moved, dropped, the
-// duplicate and missing-key fallbacks, and the key warning waiting for the
-// model to settle so a splice is not reported as a mistake — per-row repaint:
+// duplicate and missing-key fallbacks, and a splice through a reactive model
+// not being reported as one — per-row repaint:
 // an item that is its own reactive() model repaints only its row, standing
 // rows with an unchanged reactive or primitive item are skipped, and plain
 // items keep the full repaint their mutations depend on — handler and condition
@@ -503,7 +503,7 @@ test('key="$key" keys an object by its own keys, and key="." keys an array of pr
   expect(rows(primitives)[1]).toBe(salt)
 })
 
-test('duplicate keys warn and the second row gets nodes of its own — one node cannot be in two places', async () => {
+test('duplicate keys warn and the second row gets nodes of its own — one node cannot be in two places', () => {
   const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
   const root = mount(`<hg-each key="id"><ul>
     <template><li bind="name"></li></template>
@@ -512,11 +512,10 @@ test('duplicate keys warn and the second row gets nodes of its own — one node 
   el.items = [{ id: 1, name: 'Ada' }, { id: 1, name: 'Grace' }]
   expect(rows(el).map((li) => li.textContent)).toEqual(['Ada', 'Grace'])
   expect(rows(el)[0]).not.toBe(rows(el)[1])
-  await Promise.resolve()
   expect(warn).toHaveBeenCalledWith(expect.stringContaining('duplicate'))
 })
 
-test('a key path that reaches nothing warns once and the rows go back to being re-cloned', async () => {
+test('a key path that reaches nothing warns once and the rows go back to being re-cloned', () => {
   const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
   const root = mount(`<hg-each key="missing"><ul>
     <template><li bind="name"></li></template>
@@ -526,11 +525,10 @@ test('a key path that reaches nothing warns once and the rows go back to being r
   const ada = rows(el)[0]
   el.items = [{ name: 'Ada' }]
   expect(rows(el)[0]).not.toBe(ada)
-  await Promise.resolve()
   expect(warn).toHaveBeenCalledWith(expect.stringContaining('missing'))
 })
 
-test('a splice through a reactive model says nothing — the duplicate a keyed paint walks through is not one the author wrote', async () => {
+test('a splice through a reactive model says nothing — the peer settles the list before the paint sees it', async () => {
   const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
   const root = mount(`<hg-each key="id"><ul>
     <template><li bind="name"></li></template>
@@ -539,18 +537,17 @@ test('a splice through a reactive model says nothing — the duplicate a keyed p
   const items = reactive([{ id: 1, name: 'Ada' }, { id: 2, name: 'Grace' }, { id: 3, name: 'Hedy' }])
   el.items = items
   const grace = rows(el)[1]
-  // A core that notifies per shifted element paints intermediate arrays that
-  // hold an item in two slots; a batching core paints only the settled list.
-  // Either way the settled list is the author's, and no warning belongs to it.
+  // A splice notifies once per element it shifts; the peer folds the burst into
+  // one repaint of the settled list, so no paint walks an intermediate array
+  // holding an item in two slots.
   items.splice(0, 1)
   await null
   expect(rows(el).map((li) => li.textContent)).toEqual(['Grace', 'Hedy'])
   expect(rows(el)[0]).toBe(grace)
-  await null
   expect(warn).not.toHaveBeenCalled()
 })
 
-test('a key warning cancelled by one settled paint still fires for the next mistake', async () => {
+test('a duplicate the author does write still warns, after a splice that did not', async () => {
   const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
   const root = mount(`<hg-each key="id"><ul>
     <template><li bind="name"></li></template>
@@ -560,12 +557,8 @@ test('a key warning cancelled by one settled paint still fires for the next mist
   el.items = items
   items.splice(0, 1)
   await null
-  await null
   expect(warn).not.toHaveBeenCalled()
   items.push({ id: 2, name: 'Hedy' })
-  // Two ticks: a batching core paints on the first and the held key warning
-  // prints on the second; a per-mutation core is already past both.
-  await null
   await null
   expect(warn).toHaveBeenCalledWith(expect.stringContaining('duplicate'))
 })

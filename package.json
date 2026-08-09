@@ -41,12 +41,12 @@
     "lint": "eslint ."
   },
   "peerDependencies": {
-    "hydrargyri": ">=1"
+    "hydrargyri": ">=2"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "eslint": "^10.8.0",
-    "hydrargyri": "^1.0.0",
+    "hydrargyri": "^2.0.0",
     "jest": "^30.0.0",
     "jest-environment-jsdom": "^30.0.0",
     "poops": "^2.0.0"

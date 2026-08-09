@@ -7,7 +7,7 @@ project and what a pull request needs.
 
 Stack: vanilla ES modules, no framework and no TypeScript. Jest with jsdom,
 built with [poops](https://github.com/stamat/poops). One peer dependency,
-[hydrargyri](https://github.com/stamat/hydrargyri) — and it must stay a peer: two hydrargyri
+[hydrargyri](https://github.com/stamat/hydrargyri) 2 or newer — and it must stay a peer: two hydrargyri
 copies keep two element registries and nesting scope breaks silently, which is
 also why `poops.json` marks hydrargyri `external` for `dist/`.
 
@@ -54,9 +54,6 @@ script/lint      # eslint (the authority; CI runs it)
 
 ## Non-obvious rules
 
-- **`package.json` is `private: true`.** Nothing publishes until that comes
-  off, and publish.yml fails on the first `v*` tag while it stays. Removing it
-  is a release decision, not a cleanup.
 - **`_paint` hands the region over on first data, not on init.** The declared
   default `null` leaves the fallback rows standing; the gate is
   `_painted || _assigned.has('items') || items !== null`, because
@@ -76,19 +73,17 @@ script/lint      # eslint (the authority; CI runs it)
   instance bind scan must skip the rows region (row binds are item-relative
   and would warn as unknown keys) while the handler scan must keep it (row
   `on` routes through `_handle`). Both scans share `_scope`.
-- **Row `on` wires incrementally when the core allows it.** With a hydrargyri
-  that has `_wireHandlers`, `_wireRows` prunes listeners whose node left and
-  wires only fresh rows — standing rows keep the listeners they have. Without
-  it (the published peer), the fallback is the old full rescan, and *that*
-  path must re-add the `command` listener, because `_scanHandlers` tears down
-  all of `_listeners` including the one `_init` wired outside the scan —
-  without the re-add, Invoker Commands die on the first repaint.
-- **The suite runs against the sibling `../hydrargyri` checkout when present**
-  (see `jest.config.js`) — the incremental path needs the unreleased core. CI
-  has no sibling, so it exercises the published peer and the fallback path;
-  the two environments cover both. A test asserting timing must pass under
-  both a per-mutation core and a batching one — `await null` after mutating,
-  never a sync assert.
+- **Row `on` wires incrementally, never by rescan.** `_wireRows` prunes the
+  listeners whose node left with last paint's rows and calls the peer's
+  `_wireHandlers` on the fresh ones only — standing rows keep the listeners
+  they have. Nothing here may reach for `_scanHandlers`: it tears down all of
+  `_listeners`, the `command` listener `_init` wired outside the scan
+  included, and Invoker Commands would die on the first repaint. The prune
+  spares it because it sits on hg-each itself.
+- **A `reactive()` mutation repaints at microtask time, not on the spot** —
+  the peer folds a whole synchronous burst into one repaint of the settled
+  list. A test mutating a model asserts after `await null`; an assignment or
+  `update()` is still synchronous and asserts immediately.
 - **Row painting happens after insertion.** Scope is `closest()`: only the
   attached tree can say a nested hydrargyri element owns its own binds.
 - **`bind="."` arrives from `parseBinds` as `['', '']`** — the one shape a

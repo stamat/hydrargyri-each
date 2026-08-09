@@ -11,18 +11,6 @@ for the person who wrote the code.
 
 ## [Unreleased]
 
-### Changed
-
-- **Row listeners wire once, when the row arrives — no more full rescan per paint.**
-  Every paint tore down every listener the element held and rescanned the whole
-  subtree to wire them back, rows that had not moved included. On a hydrargyri with
-  `_wireHandlers` (its `main`, no release yet), a paint now wires only the fresh
-  rows and prunes the listeners whose nodes left with last paint's — standing rows
-  keep the listeners they already have. On the published peer the full rescan
-  remains, detected at paint time: same behaviour, more work. The suite runs
-  against the sibling `../hydrargyri` checkout when one is present and the
-  published peer otherwise, so both paths stay covered.
-
 ### Added
 
 - **Per-row repaint for items that are their own `reactive()` models.** Every paint of
@@ -37,6 +25,36 @@ for the person who wrote the code.
   the full repaint on purpose: they cannot report their own mutations, so skipping them
   would let `list[0].name = '…'` through the list's proxy go stale. Rows whose position
   shifts still repaint — `$index` is part of what a row shows.
+
+### Changed
+
+- **The peer is now hydrargyri 2 or newer, and a 1.x peer no longer works.** Upgrade
+  both together — `npm install hydrargyri@2 hydrargyri-each@2` — and from a CDN point
+  the import map at hydrargyri 2, because one copy of the core still has to serve both.
+  What forced it is below: the row wiring calls `_wireHandlers`, which 2.0 is the first
+  release to have, and the key warnings now trust 2.0's batching to hand them a settled
+  list. Nothing in the markup contract moved: `items`, `key`, `template`, `hg-row`,
+  `hgItem` and the fallthrough rules are what they were, so a page already on
+  hydrargyri 2 upgrades by version number alone.
+
+- **Row listeners wire once, when the row arrives — no more full rescan per paint.**
+  Every paint tore down every listener the element held and rescanned the whole subtree
+  to wire them back, rows that had not moved included. A paint now wires only the fresh
+  rows through the peer's `_wireHandlers` and prunes the listeners whose nodes left with
+  last paint's — standing rows keep the listeners they already have. The version before
+  this one carried both paths and picked one at paint time, because the core it wanted
+  was unreleased; 2.0 released it, so the rescan fallback is gone rather than dormant.
+
+- **A key warning is said at the paint that saw it again, not at the end of the task.**
+  1.0.1 held both key messages back because a `reactive()` splice repainted once per
+  element it shifted, and each of those intermediate arrays held an item in two slots —
+  a duplicate the author never wrote. hydrargyri 2 folds that whole burst into one
+  repaint of the settled list, so there is no intermediate array left to misread and
+  nothing to defer past: the warnings are synchronous, and the paint that cancels a
+  pending one is gone with the field that held it. What changes for a test: after an
+  assignment or `update()` the warning is there immediately, no microtask needed; after
+  a `reactive()` mutation one `await null` still comes first, because the repaint itself
+  is now what waits.
 
 ## [1.0.1] - 2026-08-05
 
