@@ -176,7 +176,9 @@ export default class HgEach extends HgElement {
   // The row is found by the hg-row it wears and painted from the coordinates
   // it carries, so the other rows keep whatever the DOM holds for them. Roots
   // are looked up at call time, never remembered: a paint may have re-cloned
-  // the row since the subscription was made.
+  // the row since the subscription was made. The lookup walks the region's
+  // children, so one mutation pays O(rows) and a burst mutating every row
+  // O(rows²) — an index map is the upgrade if a profile ever says so.
   _paintRowAt(index) {
     const parent = this._regionParent()
     if (!parent) return
@@ -284,6 +286,9 @@ export default class HgEach extends HgElement {
     // is stepped over, one that belongs earlier is moved, and whatever the walk
     // never reaches is last paint's and removed. Reused nodes that do not move
     // keep everything the DOM holds for them — focus, selection, scroll.
+    // No LIS diffing: a full reversal moves every root, one insertBefore each
+    // — the accepted ceiling, with the longest-stable-run upgrade waiting on
+    // a list big enough to feel it.
     let cursor = inline ? this._template.nextSibling : parent.firstChild
     for (const row of rows) {
       for (const root of row.roots) {
