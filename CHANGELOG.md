@@ -19,6 +19,16 @@ for the person who wrote the code.
   declarations import `HgElement` from the peer, so they resolve once a hydrargyri
   release carries its own; until then editors fall back to what they had.
 
+### Fixed
+
+- **A list model wrapping plain items no longer paints every row once per row.** Items
+  read through the list's own `reactive()` proxy share its subscriber set, and each row
+  subscribed to its item on top of that — so one mutation repainted the region and then
+  echoed through every row's subscription, once per row, each echo scanning the region
+  for its row. A row subscription that would only echo the list's is now undone at the
+  paint that made it: one mutation, one repaint of the settled list. An item that is a
+  reactive model of its own keeps its private subscribers and its row-alone repaint.
+
 ## [2.0.0] - 2026-08-09
 
 ### Added

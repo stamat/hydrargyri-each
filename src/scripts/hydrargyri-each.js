@@ -204,6 +204,7 @@ export default class HgEach extends HgElement {
       sub.subs.delete(sub.fn)
       return false
     })
+    const listSub = this._subscriptions.find((sub) => sub.key === 'items')
     const inline = this._template.parentNode === parent
     // An inline template divides the region: rows are always written after it,
     // so anything before it is last paint's and goes now.
@@ -236,6 +237,17 @@ export default class HgEach extends HgElement {
       // it — the subscription only sticks for one, which is also the tell.
       const count = this._subscriptions.length
       this._subscribe('$row:' + row.index, row.item)
+      let stuck = this._subscriptions.length > count
+      // An item the list's own proxy wrapped shares the list's subscriber set,
+      // so its row subscription would only echo the repaint the items
+      // subscription already delivers — one mutation painting every row once
+      // per row. Undone on the spot; the row then repaints with the region,
+      // exactly as a plain item does.
+      if (stuck && listSub && this._subscriptions[this._subscriptions.length - 1].subs === listSub.subs) {
+        const sub = this._subscriptions.pop()
+        sub.subs.delete(sub.fn)
+        stuck = false
+      }
       // A reused row whose item and place are unchanged skips its repaint —
       // but only when mutation inside the item cannot go unseen: a reactive
       // item reports its own, a primitive has no inside. A plain object only
@@ -243,7 +255,7 @@ export default class HgEach extends HgElement {
       // repaints every time. Judged before the stamping below overwrites the
       // evidence.
       const kept = reused && roots[0].hgItem === row.item && roots[0].getAttribute('hg-row') === String(row.index)
-      const skip = kept && (this._subscriptions.length > count || row.item === null || typeof row.item !== 'object')
+      const skip = kept && (stuck || row.item === null || typeof row.item !== 'object')
       for (const root of roots) {
         root.setAttribute('hg-row', row.index)
         root.hgItem = row.item

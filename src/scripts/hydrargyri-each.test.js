@@ -654,6 +654,22 @@ test('a plain item repaints with the list — mutation through the array proxy c
   expect(rows(el)[0].textContent).toBe('Ada Lovelace')
 })
 
+test('one mutation through the list model paints each row once, never once per row', async () => {
+  const root = mount(`<hg-each><ul><template><li bind="name"></li></template></ul></hg-each>`)
+  const el = root.firstElementChild
+  const items = reactive([{ name: 'Ada' }, { name: 'Grace' }, { name: 'Hedy' }])
+  el.items = items
+  const spy = jest.spyOn(el, '_paintRow')
+  items[0].name = 'Ada Lovelace'
+  await null
+  expect(rows(el).map((li) => li.textContent)).toEqual(['Ada Lovelace', 'Grace', 'Hedy'])
+  // One repaint of the region: three rows, three paints. Items the list's own
+  // proxy wrapped must not also subscribe their rows — that echo painted every
+  // row once per row.
+  expect(spy.mock.calls.length).toBe(3)
+  expect(el._subscriptions.filter((sub) => sub.key.startsWith('$row:'))).toHaveLength(0)
+})
+
 test('a primitive row in an unchanged place is not repainted — its value is all it is', async () => {
   const root = mount(`<hg-each key="."><ul>
     <template><li bind="."></li></template>
