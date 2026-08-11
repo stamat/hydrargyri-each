@@ -20,7 +20,7 @@
     "dist/hydrargyri-each.mjs.map",
     "dist/hydrargyri-each.min.mjs"
   ],
-  "homepage": "https://github.com/stamat/hydrargyri-each",
+  "homepage": "https://stamat.github.io/hydrargyri/docs/each.html",
   "repository": {
     "type": "git",
     "url": "https://github.com/stamat/hydrargyri-each.git"
