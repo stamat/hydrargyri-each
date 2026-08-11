@@ -170,7 +170,9 @@ position, `bind="$key"` the object key — nothing, on an array — and a plain
 name always means a field of the item, so an item with an `$index` of its own
 never shadows the coordinate. There is still no scope chain: a row sees its
 item and its coordinates, never the enclosing hg-each's item, and any other
-`$` name warns rather than resolving to nothing.
+`$` name warns rather than resolving to nothing. The reservation extends to
+`update()`: a key with the `$row:` prefix is hg-each's own routing for a
+single row's repaint, never a name for element state.
 
 **Each row root carries those coordinates in the DOM too.** `hg-row="0"` (the
 position, also a styling hook) as an attribute — the position even over an
