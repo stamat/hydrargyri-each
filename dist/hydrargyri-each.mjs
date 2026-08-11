@@ -1,4 +1,4 @@
-/* hydrargyri-each v2.0.0 | https://github.com/stamat/hydrargyri-each | MIT License */
+/* hydrargyri-each v2.1.0 | https://stamat.github.io/hydrargyri/docs/each.html | MIT License */
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
@@ -11,6 +11,16 @@ function isPlainObject(value) {
   return proto === Object.prototype || proto === null;
 }
 var COORDINATES = /* @__PURE__ */ new Map([["$index", "index"], ["$key", "key"]]);
+var parsedBinds = /* @__PURE__ */ new Map();
+function parseRowBinds(raw) {
+  let entries = parsedBinds.get(raw);
+  if (!entries) {
+    if (parsedBinds.size >= 1e3) parsedBinds.clear();
+    entries = parseBinds(raw);
+    parsedBinds.set(raw, entries);
+  }
+  return entries;
+}
 function resolve(row, path) {
   if (path.length === 2 && path[0] === "" && path[1] === "") return row.item;
   if (path.length === 1 && COORDINATES.has(path[0])) return row[COORDINATES.get(path[0])];
@@ -109,7 +119,9 @@ var HgEach = class extends HgElement {
   // The row is found by the hg-row it wears and painted from the coordinates
   // it carries, so the other rows keep whatever the DOM holds for them. Roots
   // are looked up at call time, never remembered: a paint may have re-cloned
-  // the row since the subscription was made.
+  // the row since the subscription was made. The lookup walks the region's
+  // children, so one mutation pays O(rows) and a burst mutating every row
+  // O(rows²) — an index map is the upgrade if a profile ever says so.
   _paintRowAt(index) {
     const parent = this._regionParent();
     if (!parent) return;
@@ -141,6 +153,7 @@ var HgEach = class extends HgElement {
       sub.subs.delete(sub.fn);
       return false;
     });
+    const listSub = this._subscriptions.find((sub) => sub.key === "items");
     const inline = this._template.parentNode === parent;
     if (inline) while (parent.firstChild && parent.firstChild !== this._template) parent.firstChild.remove();
     for (const child of [...parent.childNodes]) {
@@ -163,8 +176,14 @@ var HgEach = class extends HgElement {
       if (!roots) roots = [...document.importNode(this._template.content, true).children];
       const count = this._subscriptions.length;
       this._subscribe("$row:" + row.index, row.item);
+      let stuck = this._subscriptions.length > count;
+      if (stuck && listSub && this._subscriptions[this._subscriptions.length - 1].subs === listSub.subs) {
+        const sub = this._subscriptions.pop();
+        sub.subs.delete(sub.fn);
+        stuck = false;
+      }
       const kept = reused && roots[0].hgItem === row.item && roots[0].getAttribute("hg-row") === String(row.index);
-      const skip = kept && (this._subscriptions.length > count || row.item === null || typeof row.item !== "object");
+      const skip = kept && (stuck || row.item === null || typeof row.item !== "object");
       for (const root of roots) {
         root.setAttribute("hg-row", row.index);
         root.hgItem = row.item;
@@ -238,7 +257,7 @@ var HgEach = class extends HgElement {
     for (const node of nodes) {
       const raw = node.getAttribute("bind") || node.getAttribute("data-bind");
       if (!raw || !super._scope(node)) continue;
-      for (const entry of parseBinds(raw)) {
+      for (const entry of parseRowBinds(raw)) {
         this._render({ ...entry, el: node }, resolve(row, entry.path));
       }
     }
