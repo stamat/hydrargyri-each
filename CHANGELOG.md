@@ -11,6 +11,8 @@ for the person who wrote the code.
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-08-11
+
 ### Added
 
 - **TypeScript declarations ship with the package.** `HgEach` and the shapes `items`

@@ -1,6 +1,6 @@
 {
   "name": "hydrargyri-each",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "List rendering for hydrargyri — <hg-each> clones the <template> you wrote, one row per item, binding by names, never code",
   "type": "module",
   "main": "src/scripts/hydrargyri-each.js",
