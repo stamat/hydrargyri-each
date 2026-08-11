@@ -11,6 +11,14 @@ for the person who wrote the code.
 
 ## [Unreleased]
 
+### Added
+
+- **TypeScript declarations ship with the package.** `HgEach` and the shapes `items`
+  accepts are typed in a hand-written `src/scripts/hydrargyri-each.d.ts`, wired through
+  `types` and the `exports` map — TS consumers had implicit `any` until now. The
+  declarations import `HgElement` from the peer, so they resolve once a hydrargyri
+  release carries its own; until then editors fall back to what they had.
+
 ## [2.0.0] - 2026-08-09
 
 ### Added
