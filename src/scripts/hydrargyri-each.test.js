@@ -670,6 +670,15 @@ test('one mutation through the list model paints each row once, never once per r
   expect(el._subscriptions.filter((sub) => sub.key.startsWith('$row:'))).toHaveLength(0)
 })
 
+test('a malformed row bind warns once, not once per repaint — the parse is cached by its string', () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+  const root = mount(`<hg-each><ul><template><li bind="cachedTypo:bogus"></li></template></ul></hg-each>`)
+  const el = root.firstElementChild
+  el.items = [{}]
+  el.items = [{}, {}]
+  expect(warn.mock.calls.filter((call) => String(call[0]).includes('unknown bind')).length).toBe(1)
+})
+
 test('a primitive row in an unchanged place is not repainted — its value is all it is', async () => {
   const root = mount(`<hg-each key="."><ul>
     <template><li bind="."></li></template>

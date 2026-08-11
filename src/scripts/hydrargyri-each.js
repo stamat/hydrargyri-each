@@ -15,6 +15,23 @@ function isPlainObject(value) {
 // wins a `$` one.
 const COORDINATES = new Map([['$index', 'index'], ['$key', 'key']])
 
+// Row binds are read at every paint, unlike the peer's, which parse once at
+// scan — so the grammar work is cached by the string itself: a thousand-row
+// repaint parses each distinct bind attribute once ever, and a malformed one
+// warns once instead of once per repaint. The entries are shared and no
+// caller mutates them. The strings come from authored markup, so the map
+// stays small; the cap is for a generated page that manufactures them.
+const parsedBinds = new Map()
+function parseRowBinds(raw) {
+  let entries = parsedBinds.get(raw)
+  if (!entries) {
+    if (parsedBinds.size >= 1000) parsedBinds.clear()
+    entries = parseBinds(raw)
+    parsedBinds.set(raw, entries)
+  }
+  return entries
+}
+
 // `bind="."` parses to ['', ''] — the only shape a real path cannot take —
 // and means the item itself, the Mustache implicit iterator.
 function resolve(row, path) {
@@ -341,7 +358,7 @@ export default class HgEach extends HgElement {
     for (const node of nodes) {
       const raw = node.getAttribute('bind') || node.getAttribute('data-bind')
       if (!raw || !super._scope(node)) continue
-      for (const entry of parseBinds(raw)) {
+      for (const entry of parseRowBinds(raw)) {
         this._render({ ...entry, el: node }, resolve(row, entry.path))
       }
     }

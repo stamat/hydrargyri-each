@@ -19,6 +19,15 @@ for the person who wrote the code.
   declarations import `HgElement` from the peer, so they resolve once a hydrargyri
   release carries its own; until then editors fall back to what they had.
 
+### Changed
+
+- **A repaint parses each distinct `bind` string once ever, not once per node per
+  paint.** Row binds are read at every paint by design — no per-row parse state to go
+  stale — but the grammar work was redone for every bound node of every row, a
+  thousand-row list re-parsing the same handful of strings on each repaint. Parses now
+  cache by the string itself, which also means a malformed row bind warns once instead
+  of flooding the console on a repainting list.
+
 ### Fixed
 
 - **A list model wrapping plain items no longer paints every row once per row.** Items
