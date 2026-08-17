@@ -76,10 +76,13 @@ script/lint      # eslint (the authority; CI runs it)
 - **Row `on` wires incrementally, never by rescan.** `_wireRows` prunes the
   listeners whose node left with last paint's rows and calls the peer's
   `_wireHandlers` on the fresh ones only — standing rows keep the listeners
-  they have. Nothing here may reach for `_scanHandlers`: it tears down all of
+  they have. The `_wireHandlers` override stamps every entry with the node
+  that wired it, and the prune reads that stamp: by target alone a row's
+  `@window` listener is unattributable, and the prune kept a fresh copy per
+  repaint. Nothing here may reach for `_scanHandlers`: it tears down all of
   `_listeners`, the `command` listener `_init` wired outside the scan
   included, and Invoker Commands would die on the first repaint. The prune
-  spares it because it sits on hg-each itself.
+  spares it because it sits on hg-each itself, unstamped.
 - **A `reactive()` mutation repaints at microtask time, not on the spot** —
   the peer folds a whole synchronous burst into one repaint of the settled
   list. A test mutating a model asserts after `await null`; an assignment or

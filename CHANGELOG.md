@@ -11,6 +11,15 @@ for the person who wrote the code.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A row's `@window` / `@document` listener now leaves with its row.** The repaint
+  prune told a departed row's listeners apart by their target, which a global target
+  never matches — so a repainting list wired a fresh window listener per paint on top
+  of the old ones, every copy still firing, and the pile only cleared on disconnect.
+  Listener entries now carry the row node that wired them and are pruned when it
+  leaves.
+
 ## [2.1.0] - 2026-08-11
 
 ### Added

@@ -8,8 +8,9 @@
 // rows with an unchanged reactive or primitive item are skipped, and plain
 // items keep the full repaint their mutations depend on — handler and condition
 // fallthrough to the closest hydrargyri ancestor, scope around nested hydrargyri
-// elements, hg-each's own instance binds, share, reconnect, and the command
-// listener surviving a repaint.
+// elements, hg-each's own instance binds, share, reconnect, the command
+// listener surviving a repaint, and row listeners — window targets included —
+// leaving with their rows.
 // Deliberately not covered: the bind and on grammars themselves — hydrargyri's own
 // suite owns them, hg-each only routes through them; and focus surviving a keyed
 // reorder, because jsdom's focus does not model what a browser does when a node
@@ -737,6 +738,20 @@ test('no listener stays behind for a row that left', async () => {
   await null
   const stray = el._listeners.filter(({ el: target }) => target instanceof Element && target !== el && !el.contains(target))
   expect(stray).toEqual([])
+})
+
+test('a window listener wired for a row leaves with the row — repaints do not stack copies', () => {
+  const root = mount(`<hg-each><ul>
+    <template><li on="ping@window:noop" bind="name"></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  el.handlers.noop = jest.fn()
+  el.items = [{ name: 'salt' }, { name: 'stone' }]
+  el.items = [{ name: 'salt' }, { name: 'stone' }]
+  el.items = [{ name: 'salt' }, { name: 'stone' }]
+  expect(el._listeners.filter((entry) => entry.el === window)).toHaveLength(2)
+  window.dispatchEvent(new Event('ping'))
+  expect(el.handlers.noop).toHaveBeenCalledTimes(2)
 })
 
 test('a moved hg-each rescans and repaints on reconnect', () => {

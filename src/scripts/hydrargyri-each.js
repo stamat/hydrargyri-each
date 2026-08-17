@@ -310,13 +310,29 @@ export default class HgEach extends HgElement {
     this._wireRows(rows)
   }
 
+  // Every listener entry is stamped with the node whose `on` wired it, because
+  // the target cannot stand in for it: a row's `@window` listener targets the
+  // global, and the repaint prune can only tell a row that left by its node —
+  // pruning by target kept one more window copy per repaint, each still firing,
+  // released only at disconnect. Wrapping here rather than stamping in
+  // _wireRows catches the scan path too: a reconnect's _scanHandlers wires
+  // standing rows through this same method.
+  _wireHandlers(el) {
+    const wired = this._listeners.length
+    super._wireHandlers(el)
+    for (let i = wired; i < this._listeners.length; i++) this._listeners[i].node = el
+  }
+
   // Fresh rows wire alone and standing rows keep the listeners they already
-  // have; the prune drops listeners whose node left with last paint's rows —
-  // window/document targets and hg-each's own survive it.
+  // have; the prune drops the listeners whose carrier node left with last
+  // paint's rows — their window/document targets included, which is what the
+  // stamp is for. The command listener carries no stamp and its target is
+  // hg-each itself, so it survives, as it must.
   _wireRows(rows) {
-    this._listeners = this._listeners.filter(({ el, event, listener }) => {
-      if (!(el instanceof Element) || el === this || this.contains(el)) return true
-      el.removeEventListener(event, listener)
+    this._listeners = this._listeners.filter((entry) => {
+      const carrier = entry.node || entry.el
+      if (!(carrier instanceof Element) || carrier === this || this.contains(carrier)) return true
+      entry.el.removeEventListener(entry.event, entry.listener)
       return false
     })
     for (const row of rows) {
