@@ -11,6 +11,8 @@ for the person who wrote the code.
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-08-17
+
 ### Fixed
 
 - **A row's `@window` / `@document` listener now leaves with its row.** The repaint
