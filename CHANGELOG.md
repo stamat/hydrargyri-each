@@ -11,6 +11,8 @@ for the person who wrote the code.
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-08-21
+
 ### Added
 
 - **`static wires` reach rows.** hydrargyri wires a class's declared listeners once, at
