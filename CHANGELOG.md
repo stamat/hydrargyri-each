@@ -11,6 +11,23 @@ for the person who wrote the code.
 
 ## [Unreleased]
 
+### Added
+
+- **`static wires` reach rows.** hydrargyri wires a class's declared listeners once, at
+  scan — which for hg-each is before a single row exists, so a subclass declaring
+  `static wires = { button: 'click:remove' }` got them on everything but the rows. They
+  are now wired on each row as it is cloned, with hydrargyri's own rule where the two
+  meet: a pair the row's `on` attribute already carries stays the attribute's, wired
+  once. Row wires leave with their row, `@window` and `@document` targets included.
+
+### Changed
+
+- **hydrargyri 2.2.0 is now the peer floor**, up from 2.0.0 — row wires are built on the
+  handler parser and the `static wires` declaration that release added. hg-each 2.1.1 and
+  hydrargyri 2.2.0 do not work together at all: 2.2.0 reads the pair keys off
+  `_wireHandlers`, which hg-each overrides, and every element threw at first paint.
+  Upgrading both is the fix.
+
 ## [2.1.1] - 2026-08-17
 
 ### Fixed

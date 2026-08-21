@@ -60,8 +60,9 @@ nodes, and a list the user is typing into survives its own repaints.
 
 ## Install
 
-Needs [hydrargyri](https://github.com/stamat/hydrargyri) 2.0.0 or newer as a peer — the
-row wiring and the key warnings both rest on what that release added.
+Needs [hydrargyri](https://github.com/stamat/hydrargyri) 2.2.0 or newer as a peer — the
+row wiring and the key warnings rest on 2.0.0, and wiring `static wires` into rows on the
+handler parser 2.2.0 added.
 
 ```bash
 npm install hydrargyri hydrargyri-each
@@ -243,6 +244,15 @@ usually owns what rows do — so `on="click:remove"` inside a row asks hg-each
 first, then the hydrargyri element above it, and the handler receives the element
 it was found on. Named conditions (`bind="done:if#overdue"`) resolve the same
 way. No ancestor answering warns, as in hydrargyri.
+
+**hydrargyri's `static wires` reach rows too.** A pair declared on the class —
+`static wires = { button: 'click:remove' }` on a subclass of hg-each, or set on
+hg-each itself, which every `<hg-each>` on the page then shares — is wired on
+every matching node of every row as it is cloned, not only on the nodes
+standing when the element scanned. The markup still wins where the two meet: a
+pair the row's own `on` attribute already carries is wired once, from the
+attribute. Row wires leave with their row like any row listener, `@window` and
+`@document` targets included.
 
 ## What hg-each does not do
 

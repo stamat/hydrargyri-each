@@ -44,6 +44,7 @@ function commandEvent(command) {
 afterEach(() => {
   document.body.innerHTML = ''
   delete HgEach._shared
+  delete HgEach.wires
   jest.restoreAllMocks()
 })
 
@@ -749,6 +750,45 @@ test('a window listener wired for a row leaves with the row — repaints do not 
   el.items = [{ name: 'salt' }, { name: 'stone' }]
   el.items = [{ name: 'salt' }, { name: 'stone' }]
   el.items = [{ name: 'salt' }, { name: 'stone' }]
+  expect(el._listeners.filter((entry) => entry.el === window)).toHaveLength(2)
+  window.dispatchEvent(new Event('ping'))
+  expect(el.handlers.noop).toHaveBeenCalledTimes(2)
+})
+
+test('static wires reach a row cloned after the scan, which ran before any row existed', () => {
+  HgEach.wires = { button: 'click:poke' }
+  const root = mount(`<hg-each><ul>
+    <template><li><span bind="."></span><button></button></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  el.handlers.poke = jest.fn()
+  el.items = ['salt', 'stone']
+  for (const button of el.querySelectorAll('button')) button.click()
+  expect(el.handlers.poke).toHaveBeenCalledTimes(2)
+})
+
+test('a wires pair the row markup already carries fires once, not twice', () => {
+  HgEach.wires = { button: 'click:poke' }
+  const root = mount(`<hg-each><ul>
+    <template><li><button on="click:poke"></button></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  el.handlers.poke = jest.fn()
+  el.items = ['salt']
+  el.querySelector('button').click()
+  expect(el.handlers.poke).toHaveBeenCalledTimes(1)
+})
+
+test('a row wires pair leaves with its row, @window included — repaints do not stack copies', () => {
+  HgEach.wires = { li: 'ping@window:noop' }
+  const root = mount(`<hg-each><ul>
+    <template><li bind="."></li></template>
+  </ul></hg-each>`)
+  const el = root.firstElementChild
+  el.handlers.noop = jest.fn()
+  el.items = ['salt', 'stone']
+  el.items = ['salt', 'stone']
+  el.items = ['salt', 'stone']
   expect(el._listeners.filter((entry) => entry.el === window)).toHaveLength(2)
   window.dispatchEvent(new Event('ping'))
   expect(el.handlers.noop).toHaveBeenCalledTimes(2)
