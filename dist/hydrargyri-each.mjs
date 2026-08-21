@@ -1,4 +1,4 @@
-/* hydrargyri-each v2.1.1 | https://stamat.github.io/hydrargyri/docs/each.html | MIT License */
+/* hydrargyri-each v2.2.0 | https://stamat.github.io/hydrargyri/docs/each.html | MIT License */
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
@@ -9,6 +9,9 @@ function isPlainObject(value) {
   if (typeof value !== "object" || value === null) return false;
   const proto = Object.getPrototypeOf(value);
   return proto === Object.prototype || proto === null;
+}
+function pairKey({ event, where, name }) {
+  return `${event}@${where || ""}:${name}`;
 }
 var COORDINATES = /* @__PURE__ */ new Map([["$index", "index"], ["$key", "key"]]);
 var parsedBinds = /* @__PURE__ */ new Map();
@@ -209,17 +212,73 @@ var HgEach = class extends HgElement {
     }
     this._wireRows(rows);
   }
-  // Every listener entry is stamped with the node whose `on` wired it, because
-  // the target cannot stand in for it: a row's `@window` listener targets the
-  // global, and the repaint prune can only tell a row that left by its node —
-  // pruning by target kept one more window copy per repaint, each still firing,
-  // released only at disconnect. Wrapping here rather than stamping in
-  // _wireRows catches the scan path too: a reconnect's _scanHandlers wires
-  // standing rows through this same method.
+  // The peer's scan path, routed through the one door that stamps: a reconnect
+  // rescans and wires standing rows through here. Wires the peer's sweep will
+  // reach itself, right after, so this pass takes the `on` attribute alone.
   _wireHandlers(el) {
-    const wired = this._listeners.length;
-    super._wireHandlers(el);
-    for (let i = wired; i < this._listeners.length; i++) this._listeners[i].node = el;
+    return this._wireNode(el, []);
+  }
+  // One node wired: its own `on` pairs first, then the `static wires` specs
+  // that named it, skipping a pair the markup already carries — the peer's
+  // "the markup wins", enforced here because the peer's sweep runs once at
+  // scan, when no row exists yet. The attribute is parsed once for both jobs;
+  // handing it to the peer's _wireHandlers as well would parse it a second
+  // time and warn twice about one typo. Returns the markup's pair keys, which
+  // is what hydrargyri 2.2.0's sweep asks this override for.
+  //
+  // Every entry is stamped with the node that wired it, because the target
+  // cannot stand in for it: a row's `@window` listener targets the global, and
+  // the repaint prune can only tell a row that left by its node — pruning by
+  // target kept one more window copy per repaint, each still firing, released
+  // only at disconnect.
+  _wireNode(node, specs) {
+    const wire = (entry) => {
+      const wired = this._listeners.length;
+      this._wireEntry(node, entry);
+      for (let i = wired; i < this._listeners.length; i++) this._listeners[i].node = node;
+    };
+    const keys = [];
+    const raw = node.getAttribute("on") || node.getAttribute("data-on");
+    if (raw) {
+      for (const entry of this._parseHandlers(raw)) {
+        wire(entry);
+        keys.push(pairKey(entry));
+      }
+    }
+    const seen = new Set(keys);
+    for (const spec of specs) {
+      for (const entry of this._parseHandlers(spec)) {
+        const key = pairKey(entry);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        wire(entry);
+      }
+    }
+    return keys;
+  }
+  // The nodes of a fresh row that want listeners, each with the wires specs
+  // that named it: every node carrying `on`, plus every node a `static wires`
+  // selector matches. A selector that will not parse is skipped in silence —
+  // the peer's scan warned about it once already, and warning here would say
+  // it again per row and per repaint.
+  _rowWires(root) {
+    const nodes = /* @__PURE__ */ new Map();
+    for (const node of [root, ...root.querySelectorAll("[on],[data-on]")]) nodes.set(node, []);
+    for (const [selector, spec] of Object.entries(this.constructor.wires)) {
+      let matched;
+      try {
+        matched = [...root.querySelectorAll(selector)];
+        if (root.matches(selector)) matched.unshift(root);
+      } catch {
+        continue;
+      }
+      for (const node of matched) {
+        const specs = nodes.get(node);
+        if (specs) specs.push(spec);
+        else nodes.set(node, [spec]);
+      }
+    }
+    return nodes;
   }
   // Fresh rows wire alone and standing rows keep the listeners they already
   // have; the prune drops the listeners whose carrier node left with last
@@ -236,8 +295,8 @@ var HgEach = class extends HgElement {
     for (const row of rows) {
       if (!row.fresh) continue;
       for (const root of row.roots) {
-        for (const node of [root, ...root.querySelectorAll("[on],[data-on]")]) {
-          if (super._scope(node)) this._wireHandlers(node);
+        for (const [node, specs] of this._rowWires(root)) {
+          if (super._scope(node)) this._wireNode(node, specs);
         }
       }
     }
