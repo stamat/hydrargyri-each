@@ -54,6 +54,6 @@
     "hydrargyri": "^2.2.0",
     "jest": "^30.0.0",
     "jest-environment-jsdom": "^30.0.0",
-    "poops": "^2.0.0"
+    "poops": "^3.0.0"
   }
 }
